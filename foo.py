@@ -1,9 +1,19 @@
 from lex import *
+from parse import *
+import sys
 
-source = '+= #fuck me\n *"fuck" 123.123 IF x'
-lexer = Lexer(source)
+def main():
 
-token = lexer.getToken()
-while token.kind != TokenType.EOF:
-    print(token.kind, token.text)
-    token = lexer.getToken()
+    if len(sys.argv) != 2:
+        sys.exit("Error: no input file.")
+    with open(sys.argv[1], 'r') as inputFile:
+        source = inputFile.read()
+
+    lexer = Lexer(source)
+    parser = Parser(lexer)
+
+    parser.program()
+    print("Parsing completed.")
+
+if __name__ == "__main__":
+    main()
