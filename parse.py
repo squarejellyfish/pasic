@@ -37,7 +37,8 @@ class Parser:
         self.peekToken = self.lexer.getToken()
 
     def abort(self, message):
-        sys.exit("Error: " + message)
+        eprint(f"{self.lexer.sourceName}:{self.curToken.curLine}:{self.curToken.linePos} Error: " + message) 
+        sys.exit(69)
 
     def isComparisonOp(self):
         return self.checkToken(TokenType.GT) or self.checkToken(TokenType.GTEQ) or self.checkToken(TokenType.LT) or self.checkToken(TokenType.LTEQ) or self.checkToken(TokenType.EQEQ) or self.checkToken(TokenType.NOTEQ)
@@ -46,7 +47,7 @@ class Parser:
     def program(self):
         self.emitter.headerLine("#include <stdio.h>")
         self.emitter.headerLine("int main(void) {")
-        # print("PROGRAM")
+        print("PROGRAM")
 
         # Strip newlines at start
         while self.checkToken(TokenType.NEWLINE):
@@ -69,7 +70,7 @@ class Parser:
 
         # PRINT (expr | string)
         if self.checkToken(TokenType.PRINT):
-            # print("STATEMENT-PRINT")
+            print("STATEMENT-PRINT")
             self.nextToken()
 
             if self.checkToken(TokenType.STRING): # just string
@@ -82,7 +83,7 @@ class Parser:
                 self.emitter.emitLine("));")
         # IF comparison THEN {statement} ENDIF
         elif self.checkToken(TokenType.IF):
-            # print("STATEMENT-IF")
+            print("STATEMENT-IF")
             self.emitter.emit("if(")
             self.nextToken()
             self.comparison()
@@ -98,7 +99,7 @@ class Parser:
             self.emitter.emitLine("}") 
         # WHILE comparison REPEAT nl {statement nl} ENDWHILE nl
         elif self.checkToken(TokenType.WHILE):
-            # print("STATEMENT-WHILE")
+            print("STATEMENT-WHILE")
             self.emitter.emit("while (")
             self.nextToken()
             self.comparison()
@@ -114,7 +115,7 @@ class Parser:
             self.emitter.emitLine("}")
         # "LABEL" ident
         elif self.checkToken(TokenType.LABEL):
-            # print("STATEMENT-LABEL")
+            print("STATEMENT-LABEL")
             self.nextToken()
 
             # Check if this label already exist
@@ -126,14 +127,14 @@ class Parser:
             self.match(TokenType.IDENT)
         # "GOTO" ident
         elif self.checkToken(TokenType.GOTO):
-            # print("STATEMENT-GOTO")
+            print("STATEMENT-GOTO")
             self.nextToken()
             self.labelsGotoed.add(self.curToken.text)
             self.emitter.emitLine("goto " + self.curToken.text + ';')
             self.match(TokenType.IDENT)
         # "LET" ident "=" expression
         elif self.checkToken(TokenType.LET):
-            # print("STATEMENT-LET")
+            print("STATEMENT-LET")
             self.nextToken()
 
             # Check if ident in symbols, if not we add it and emit it in headerLine
@@ -148,7 +149,7 @@ class Parser:
             self.emitter.emitLine(';')
         # "INPUT" ident
         elif self.checkToken(TokenType.INPUT):
-            # print("STATEMENT-INPUT")
+            print("STATEMENT-INPUT")
             self.nextToken()
 
             # Check if ident in symbols, if not we add it
@@ -170,7 +171,7 @@ class Parser:
 
     # comparison ::= expression (("==" | "!=" | ">" | ">=" | "<" | "<=") expression)+
     def comparison(self):
-        # print("COMPARISON")
+        print("COMPARISON")
 
         self.expression()
         # Must be at least one comparison operator and another expr
@@ -179,7 +180,7 @@ class Parser:
             self.nextToken()
             self.expression()
         else:
-            self.abort(f"Expected comparison operator at: {self.curToken} ({self.curToken.kind.name})")
+            self.abort(f"Expected comparison operator at: {self.curToken.text} got ({self.curToken.kind.name})")
 
         while self.isComparisonOp():
             self.emitter.emit(self.curToken.text)
@@ -188,18 +189,28 @@ class Parser:
 
     # expression ::= term {( "-" | "+" ) term}
     def expression(self):
-        # print("EXPRESSION")
+        print("EXPRESSION")
 
+        # 0 or 1 parenthese
+        hasParent = False
+        if self.checkToken(TokenType.LPARENT):
+            hasParent = True
+            self.emitter.emit('(')
+            self.nextToken()
         self.term()
         # And then 0 or more +/- and term
         while self.checkToken(TokenType.PLUS) or self.checkToken(TokenType.MINUS):
             self.emitter.emit(self.curToken.text)
             self.nextToken()
             self.term()
+        if hasParent:
+            self.match(TokenType.RPARENT)
+            self.emitter.emit(')')
+            self.nextToken()
 
     # term ::= unary {( "/" | "*" ) unary}
     def term(self):
-        # print("TERM")
+        print("TERM")
 
         self.unary()
         while self.checkToken(TokenType.SLASH) or self.checkToken(TokenType.ASTERISK):
@@ -209,7 +220,7 @@ class Parser:
 
     # unary ::= ["+" | "-"] primary
     def unary(self):
-        # print("UNARY")
+        print("UNARY")
 
         if self.checkToken(TokenType.PLUS) or self.checkToken(TokenType.MINUS):
             self.emitter.emit(self.curToken.text)
@@ -218,7 +229,7 @@ class Parser:
 
     # primary ::= number | ident
     def primary(self):
-        # print(f"PRIMARY ({self.curToken.text})")
+        print(f"PRIMARY ({self.curToken.text})")
 
         if self.checkToken(TokenType.NUMBER):
             self.emitter.emit(self.curToken.text)
@@ -233,7 +244,7 @@ class Parser:
             self.abort(f"Unexpected token at {self.curToken.text}")
 
     def nl(self):
-        # print("NEWLINE")
+        print("NEWLINE")
 
         # Need at least one newline
         self.match(TokenType.NEWLINE)

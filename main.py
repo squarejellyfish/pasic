@@ -7,10 +7,11 @@ def main():
 
     if len(sys.argv) != 2:
         sys.exit("Error: no input file.")
-    with open(sys.argv[1], 'r') as inputFile:
+    fileName = sys.argv[1]
+    with open(fileName, 'r') as inputFile:
         source = inputFile.read()
 
-    lexer = Lexer(source)
+    lexer = Lexer(source, fileName)
     emitter = Emitter("out.c")
     parser = Parser(lexer, emitter)
 

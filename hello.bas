@@ -1,13 +1,11 @@
-PRINT "How many fibonacci numbers do you want?"
-INPUT nums
-PRINT ""
+LET y = 0
+PRINT y
 
-LET a = 0
-LET b = 1
-WHILE nums > 0 REPEAT
-    PRINT a
-    LET c = a + b
-    LET a = b
-    LET b = c
-    LET nums = nums - 1
+WHILE y < 10 REPEAT
+    PRINT y
+    LET y = y + 1
 ENDWHILE
+
+IF y == 0 THEN
+    PRINT y
+ENDIF
