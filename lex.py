@@ -159,8 +159,21 @@ class Token:
     @staticmethod
     def isKeyword(text):
         for kind in TokenType:
-            if kind.name == text and kind.value >= 100 and kind.value < 200:
-                return (True, kind)
+            if kind.value >= 100 and kind.value < 200:
+                # special case (reserved words)
+                if kind is TokenType.if_ and text == str(kind.name)[:-1]:
+                    return (True, kind)
+                elif kind is TokenType.while_ and text == str(kind.name)[:-1]:
+                    return (True, kind)
+                elif kind is TokenType.and_ and text == str(kind.name)[:-1]:
+                    return (True, kind)
+                elif kind is TokenType.or_ and text == str(kind.name)[:-1]:
+                    return (True, kind)
+                elif kind is TokenType.not_ and text == str(kind.name)[:-1]:
+                    return (True, kind)
+                # other case
+                elif kind.name == text:
+                    return (True, kind)
         return (False, None)
 
 # TokenType is our enum for all the types of tokens.
@@ -173,17 +186,19 @@ class TokenType(enum.Enum):
     LPARENT = 4
     RPARENT = 4
     # Keywords.
-    LABEL = 101
-    GOTO = 102
-    PRINT = 103
-    INPUT = 104
-    LET = 105
-    IF = 106
-    THEN = 107
-    ENDIF = 108
-    WHILE = 109
-    REPEAT = 110
-    ENDWHILE = 111
+    label = 101
+    goto = 102
+    print = 103
+    input = 104
+    let = 105
+    if_ = 106
+    then = 107
+    end = 108
+    while_ = 109
+    do = 110
+    and_ = 111
+    or_ = 112
+    not_ = 113
     # Operators.
     EQ = 201  
     PLUS = 202

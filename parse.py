@@ -69,7 +69,7 @@ class Parser:
         # Check first token to see which statement
 
         # PRINT (expr | string)
-        if self.checkToken(TokenType.PRINT):
+        if self.checkToken(TokenType.print):
             print("STATEMENT-PRINT")
             self.nextToken()
 
@@ -82,39 +82,39 @@ class Parser:
                 self.expression()
                 self.emitter.emitLine("));")
         # IF comparison THEN {statement} ENDIF
-        elif self.checkToken(TokenType.IF):
+        elif self.checkToken(TokenType.if_):
             print("STATEMENT-IF")
             self.emitter.emit("if(")
             self.nextToken()
             self.comparison()
 
-            self.match(TokenType.THEN)
+            self.match(TokenType.then)
             self.nl()
             self.emitter.emitLine("){") 
 
-            while not self.checkToken(TokenType.ENDIF):
+            while not self.checkToken(TokenType.end):
                 self.statement()
 
-            self.match(TokenType.ENDIF)
+            self.match(TokenType.end)
             self.emitter.emitLine("}") 
         # WHILE comparison REPEAT nl {statement nl} ENDWHILE nl
-        elif self.checkToken(TokenType.WHILE):
+        elif self.checkToken(TokenType.while_):
             print("STATEMENT-WHILE")
             self.emitter.emit("while (")
             self.nextToken()
             self.comparison()
 
-            self.match(TokenType.REPEAT)
+            self.match(TokenType.do)
             self.nl()
             self.emitter.emitLine("){")
 
-            while not self.checkToken(TokenType.ENDWHILE):
+            while not self.checkToken(TokenType.end):
                 self.statement()
 
-            self.match(TokenType.ENDWHILE)
+            self.match(TokenType.end)
             self.emitter.emitLine("}")
         # "LABEL" ident
-        elif self.checkToken(TokenType.LABEL):
+        elif self.checkToken(TokenType.label):
             print("STATEMENT-LABEL")
             self.nextToken()
 
@@ -126,14 +126,14 @@ class Parser:
             self.emitter.emitLine(self.curToken.text + ':')
             self.match(TokenType.IDENT)
         # "GOTO" ident
-        elif self.checkToken(TokenType.GOTO):
+        elif self.checkToken(TokenType.goto):
             print("STATEMENT-GOTO")
             self.nextToken()
             self.labelsGotoed.add(self.curToken.text)
             self.emitter.emitLine("goto " + self.curToken.text + ';')
             self.match(TokenType.IDENT)
         # "LET" ident "=" expression
-        elif self.checkToken(TokenType.LET):
+        elif self.checkToken(TokenType.let):
             print("STATEMENT-LET")
             self.nextToken()
 
@@ -148,7 +148,7 @@ class Parser:
             self.expression()
             self.emitter.emitLine(';')
         # "INPUT" ident
-        elif self.checkToken(TokenType.INPUT):
+        elif self.checkToken(TokenType.input):
             print("STATEMENT-INPUT")
             self.nextToken()
 
@@ -164,6 +164,18 @@ class Parser:
             self.emitter.emitLine("*s\");")
             self.emitter.emitLine("}")
             self.match(TokenType.IDENT)
+        # "IDENT"
+        elif self.checkToken(TokenType.IDENT):
+            # "IDENT" = expression
+            if self.peekToken.kind is TokenType.EQ:
+                print("ASSIGN-STATEMENT")
+                self.emitter.emit(f"{self.curToken.text}=")
+                self.nextToken()
+                self.nextToken()
+                self.expression()
+            else:
+                self.expression()
+            self.emitter.emitLine(";")
         else:
             self.abort(f"Invalid statement at {self.curToken.text} ({self.curToken.kind.name})")
 
@@ -188,8 +200,14 @@ class Parser:
             self.expression()
 
     # expression ::= term {( "-" | "+" ) term}
+    #               | "not" expression
+    #               | expression
     def expression(self):
         print("EXPRESSION")
+
+        if self.checkToken(TokenType.not_):
+            self.emitter.emit('!')
+            self.nextToken()
 
         # 0 or 1 parenthese
         hasParent = False
@@ -203,6 +221,12 @@ class Parser:
             self.emitter.emit(self.curToken.text)
             self.nextToken()
             self.term()
+
+        # "and" expression
+        if self.checkToken(TokenType.and_):
+            self.emitter.emit('&&') 
+            self.nextToken()
+            self.expression()
         if hasParent:
             self.match(TokenType.RPARENT)
             self.emitter.emit(')')

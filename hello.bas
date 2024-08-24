@@ -1,11 +1,7 @@
-LET y = 0
-PRINT y
+let x = 10
+let y = 10
 
-WHILE y < 10 REPEAT
-    PRINT y
-    LET y = y + 1
-ENDWHILE
-
-IF y == 0 THEN
-    PRINT y
-ENDIF
+if x > 0 and y > 0 then
+    print "fuck"
+    print "fuck me"
+end
