@@ -171,6 +171,8 @@ class Token:
                     return (True, kind)
                 elif kind is TokenType.not_ and text == str(kind.name)[:-1]:
                     return (True, kind)
+                elif kind is TokenType.else_ and text == str(kind.name)[:-1]:
+                    return (True, kind)
                 # other case
                 elif kind.name == text:
                     return (True, kind)
@@ -184,7 +186,7 @@ class TokenType(enum.Enum):
     IDENT = 2
     STRING = 3
     LPARENT = 4
-    RPARENT = 4
+    RPARENT = 5
     # Keywords.
     label = 101
     goto = 102
@@ -199,6 +201,7 @@ class TokenType(enum.Enum):
     and_ = 111
     or_ = 112
     not_ = 113
+    else_ = 114
     # Operators.
     EQ = 201  
     PLUS = 202

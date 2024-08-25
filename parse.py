@@ -93,6 +93,26 @@ class Parser:
             self.emitter.emitLine("){") 
 
             while not self.checkToken(TokenType.end):
+                # ELSE IF comparison THEN {statement}
+                if self.checkToken(TokenType.else_) and self.peekToken.kind is TokenType.if_:
+                    print("STATEMENT-ELSEIF")
+                    self.emitter.emit("}else if(")
+                    self.nextToken()
+                    self.nextToken()
+
+                    self.comparison()
+
+                    self.match(TokenType.then)
+                    self.nl()
+
+                    self.emitter.emitLine("){")
+                # ELSE
+                elif self.checkToken(TokenType.else_):
+                    print("STATEMENT-ELSE")
+                    self.nextToken()
+                    self.nl()
+                    self.emitter.emitLine("}else{")
+
                 self.statement()
 
             self.match(TokenType.end)
@@ -249,14 +269,17 @@ class Parser:
         if self.checkToken(TokenType.PLUS) or self.checkToken(TokenType.MINUS):
             self.emitter.emit(self.curToken.text)
             self.nextToken()
-        self.primary()
+        self.value()
 
-    # primary ::= number | ident
-    def primary(self):
+    # primary ::= number | string | ident
+    def value(self):
         print(f"PRIMARY ({self.curToken.text})")
 
         if self.checkToken(TokenType.NUMBER):
             self.emitter.emit(self.curToken.text)
+            self.nextToken()
+        elif self.checkToken(TokenType.STRING):
+            self.emitter.emit(f'"{self.curToken.text}"')
             self.nextToken()
         elif self.checkToken(TokenType.IDENT):
             # Ensure var exists
