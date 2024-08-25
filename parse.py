@@ -2,6 +2,10 @@ import sys
 from emit import Emitter
 from lex import *
 
+"""
+TODO: FOR, WHILE loop, for turing completeness, best is just translate C functions to here
+"""
+
 # Parser object keeps track of current token and checks if the code matches the grammar.
 class Parser:
     def __init__(self, lexer, emitter):
