@@ -1,7 +1,4 @@
-let x = 10
-let y = 10
+let x = (10 + 10) * (2 + 2)
 
-if x > 0 and y > 0 then
-    print "fuck"
-    print "fuck me"
-end
+print(x)
+print("fuck")

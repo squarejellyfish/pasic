@@ -4,6 +4,7 @@ from emit import *
 from pathlib import Path
 import subprocess
 import sys
+import json
 
 def main():
 
@@ -18,11 +19,12 @@ def main():
     emitter = Emitter(outputName.name)
     parser = Parser(lexer, emitter)
 
-    parser.program()
+    ast = parser.program()
+    print(json.dumps(ast, indent=4))
     emitter.writeFile()
 
-    subprocess.run(["gcc", outputName.name, "-o", outputName.stem])
-    subprocess.run([f"./{outputName.stem}"])
+    # subprocess.run(["gcc", outputName.name, "-o", outputName.stem])
+    # subprocess.run([f"./{outputName.stem}"])
 
 if __name__ == "__main__":
     main()
