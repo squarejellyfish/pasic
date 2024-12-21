@@ -4,6 +4,8 @@ from emit import *
 from pathlib import Path
 import subprocess
 import sys
+import json
+from dicttoxml import dicttoxml
 
 def main():
 
@@ -18,11 +20,14 @@ def main():
     emitter = Emitter(outputName.name)
     parser = Parser(lexer, emitter)
 
-    parser.program()
-    emitter.writeFile()
+    program = parser.program()
+    xml = dicttoxml(program, root=False, return_bytes=False, attr_type=False)
+    with open('parse.xml', 'w') as file:
+        file.write(xml)
+    # emitter.writeFile()
 
-    subprocess.run(["gcc", outputName.name, "-o", outputName.stem])
-    subprocess.run([f"./{outputName.stem}"])
+    # subprocess.run(["gcc", outputName.name, "-o", outputName.stem])
+    # subprocess.run([f"./{outputName.stem}"])
 
 if __name__ == "__main__":
     main()
