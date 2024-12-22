@@ -142,6 +142,8 @@ class Lexer:
             token = Token(self.curChar, TokenType.NEWLINE, self.curLine, self.linePos)
         elif self.curChar == '\0':
             token = Token(self.curChar, TokenType.EOF, self.curLine, self.linePos)
+        elif self.curChar == ':':
+            token = Token(self.curChar, TokenType.COLON, self.curLine, self.linePos)
         else:
             # Unknown token!
             self.abort("Unknown token: " + self.curChar)
@@ -187,6 +189,7 @@ class TokenType(enum.Enum):
     STRING = 3
     LPARENT = 4
     RPARENT = 5
+    COLON = 6
     # Keywords.
     label = 101
     goto = 102

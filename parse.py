@@ -1,5 +1,4 @@
 import sys
-from emit import Emitter
 from lex import *
 
 """
@@ -11,9 +10,8 @@ TODO: Parse to XML format first, and think how to generate asm code
 
 
 class Parser:
-    def __init__(self, lexer, emitter):
+    def __init__(self, lexer):
         self.lexer: Lexer = lexer
-        self.emitter: Emitter = emitter
 
         self.symbols = set()
         self.labelsDeclared = set()
@@ -136,35 +134,32 @@ class Parser:
                 last.append(self.statement())
 
             self.match(TokenType.end)
-        # WHILE comparison REPEAT nl {statement nl} ENDWHILE nl
+        # WHILE comparison DO nl {statement nl} end nl
         elif self.checkToken(TokenType.while_):
             print("STATEMENT-WHILE")
             self.nextToken()
-            self.comparison()
+            ret = {
+                'while_statement': {
+                    'condition': self.comparison(),
+                    'body': list(),
+                }
+            }
 
             self.match(TokenType.do)
             self.nl()
 
             while not self.checkToken(TokenType.end):
-                self.statement()
+                ret['while_statement']['body'].append(self.statement())
 
             self.match(TokenType.end)
-        # "LABEL" ident
-        elif self.checkToken(TokenType.label):
-            print("STATEMENT-LABEL")
-            self.nextToken()
-
-            # Check if this label already exist
-            if self.curToken.text in self.labelsDeclared:
-                self.abort(f"Label already exists: {self.curToken.text}")
-            self.labelsDeclared.add(self.curToken.text)
-
-            self.match(TokenType.IDENT)
         # "GOTO" ident
         elif self.checkToken(TokenType.goto):
             print("STATEMENT-GOTO")
             self.nextToken()
             self.labelsGotoed.add(self.curToken.text)
+            ret = {
+                'goto_statement': {'destination': self.curToken.text}
+            }
             self.match(TokenType.IDENT)
         # "LET" ident "=" expression
         elif self.checkToken(TokenType.let):
@@ -174,7 +169,6 @@ class Parser:
             # Check if ident in symbols, if not we add it and emit it in headerLine
             if self.curToken.text not in self.symbols:
                 self.symbols.add(self.curToken.text)
-                self.emitter.headerLine("float " + self.curToken.text + ';')
 
             ret = {'left': {
                 'ident': {'text': self.curToken.text}
@@ -185,16 +179,16 @@ class Parser:
             ret = {'let_statement': ret}
         # "INPUT" ident
         elif self.checkToken(TokenType.input):
-            print("STATEMENT-INPUT")
-            self.nextToken()
-
-            # Check if ident in symbols, if not we add it
-            if self.curToken.text not in self.symbols:
-                self.symbols.add(self.curToken.text)
-                self.emitter.headerLine("float " + self.curToken.text + ';')
-
-            # Emit scanf but also validate the input. If invalid, set the variable to 0 and clear the input.
-            self.match(TokenType.IDENT)
+            self.abort(f'Input statement is not implemented')
+            # print("STATEMENT-INPUT")
+            # self.nextToken()
+            #
+            # # Check if ident in symbols, if not we add it
+            # if self.curToken.text not in self.symbols:
+            #     self.symbols.add(self.curToken.text)
+            #
+            # # Emit scanf but also validate the input. If invalid, set the variable to 0 and clear the input.
+            # self.match(TokenType.IDENT)
         # "IDENT"
         elif self.checkToken(TokenType.IDENT):
             # "IDENT" = expression
@@ -207,6 +201,19 @@ class Parser:
                 self.nextToken()
                 ret['right'] = self.sum()
                 ret = {'assign_statement': ret}
+            elif self.peekToken.kind is TokenType.COLON:
+                print("STATEMENT-LABEL")
+
+                # Check if this label already exist
+                if self.curToken.text in self.labelsDeclared:
+                    self.abort(f"Label already exists: {self.curToken.text}")
+                self.labelsDeclared.add(self.curToken.text)
+
+                ret = {
+                    'label_statement': {'text': self.curToken.text}
+                }
+                self.nextToken()
+                self.match(TokenType.COLON)
             else:
                 ret = self.expression()
         else:
@@ -242,7 +249,7 @@ class Parser:
             self.nextToken()
             ret['comparison_op']['right'] = self.sum()
 
-        return ret
+        return {'comparison': ret}
 
     # sum ::= term (op term)*
     def sum(self):
