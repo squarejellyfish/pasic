@@ -30,8 +30,8 @@ def main():
 
     subprocess.run(["nasm", "-felf64", "-g", outputName.name])
     subprocess.run(["ld", "-o", outputName.stem, f'{outputName.stem}.o'])
-    execute = subprocess.run([f"./{outputName.stem}"])
-    print(f'return code: {execute.returncode}')
+    # execute = subprocess.run([f"./{outputName.stem}"])
+    # print(f'return code: {execute.returncode}')
 
 if __name__ == "__main__":
     main()

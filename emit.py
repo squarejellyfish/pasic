@@ -30,7 +30,7 @@ class Emitter:
         # SYS_EXIT
         self.emitLine(f'')
         self.emitLine(f'\tmov rax, 60')
-        self.emitLine(f'\tmov rdi, 69')
+        self.emitLine(f'\tmov rdi, 0')
         self.emitLine(f'\tsyscall')
 
     def emit(self, code):

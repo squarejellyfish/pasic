@@ -82,12 +82,12 @@ class Parser:
             self.nextToken()
 
             ret['print_statement'] = self.expression()
-        # IF comparison THEN {statement} END
+        # IF expression THEN {statement} END
         elif self.checkToken(TokenType.if_):
             self.nextToken()
             ret = {
                 'if_statement': {
-                    'condition': self.comparison(),
+                    'condition': self.expression(),
                     'body': list(),
                 }
             }
@@ -190,7 +190,7 @@ class Parser:
                 }}
                 self.nextToken()
                 self.nextToken()
-                ret['right'] = self.sum()
+                ret['right'] = self.expression()
                 ret = {'assign_statement': ret}
             elif self.peekToken.kind is TokenType.COLON:
 
