@@ -89,7 +89,7 @@ class Lexer:
                     token = Token(lastChar + self.curChar, TokenType.LTEQ, self.curLine, self.linePos)
                 else:
                     token = Token(self.curChar, TokenType.LT, self.curLine, self.linePos)
-        elif self.curChar == '!':
+        elif self.curChar == '!': 
             if self.peek() == '=':
                 lastChar = self.curChar
                 self.nextChar()
@@ -175,6 +175,8 @@ class Token:
                     return (True, kind)
                 elif kind is TokenType.else_ and text == str(kind.name)[:-1]:
                     return (True, kind)
+                elif kind is TokenType.return_ and text == str(kind.name)[:-1]:
+                    return (True, kind)
                 # other case
                 elif kind.name == text:
                     return (True, kind)
@@ -205,6 +207,7 @@ class TokenType(enum.Enum):
     or_ = 112
     not_ = 113
     else_ = 114
+    return_ = 115
     # Operators.
     EQ = 201  
     PLUS = 202

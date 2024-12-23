@@ -206,6 +206,14 @@ class Parser:
                 self.match(TokenType.COLON)
             else:
                 ret = self.expression()
+        # "return" [expression]
+        elif self.checkToken(TokenType.return_):
+            if self.peekToken.kind is TokenType.NEWLINE:
+                self.nextToken()
+                ret = {'return_statement': {'value': {'number': {'text': '0'}}}}
+            else:
+                self.nextToken()
+                ret = {'return_statement': {'value': self.expression()}}
         else:
             self.abort(f"Invalid statement at {
                        self.curToken.text} ({self.curToken.kind.name})")
@@ -214,15 +222,10 @@ class Parser:
         return ret
 
     # expression ::= comparison
+    #               | '(' expression ')'
     def expression(self):
         # 0 or 1 parenthese
-        hasParent = False
-        if self.checkToken(TokenType.LPARENT):
-            hasParent = True
-            self.nextToken()
         ret = {'expression': self.comparison()}
-        if hasParent:
-            self.match(TokenType.RPARENT)
         return ret
 
     # comparison ::= sum (("==" | "!=" | ">" | ">=" | "<" | "<=") sum)*
@@ -286,10 +289,14 @@ class Parser:
         else:
             return {'unary': self.value()}
 
-    # value ::= number | string | ident
+    # value ::= '(' expression ')' | number | string | ident
     def value(self):
 
-        if self.checkToken(TokenType.NUMBER):
+        if self.checkToken(TokenType.LPARENT):
+            self.nextToken()
+            ret = self.expression()
+            self.match(TokenType.RPARENT)
+        elif self.checkToken(TokenType.NUMBER):
             ret = {'number': {
                 'text': self.curToken.text
             }}
