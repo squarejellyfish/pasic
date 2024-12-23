@@ -4,4 +4,3 @@ while x do
     print(x)
     x = x - 1
 end
-

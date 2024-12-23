@@ -1,7 +1,7 @@
 TARGET = out
 
-$(TARGET): parse.py lex.py emit.py main.py hello.bas
-	python main.py hello.bas
+$(TARGET): parse.py lex.py emit.py pasic.py hello.bas
+	python pasic.py hello.bas
 
 asm: out.asm
 	nasm -felf64 out.asm

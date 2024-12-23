@@ -1,11 +1,6 @@
 import sys
 from lex import *
 
-"""
-TODO: FOR, WHILE loop, for turing completeness, best is just translate C functions to here
-TODO: Parse to XML format first, and think how to generate asm code
-"""
-
 # Parser object keeps track of current token and checks if the code matches the grammar.
 
 
@@ -222,7 +217,6 @@ class Parser:
         return ret
 
     # expression ::= comparison
-    #               | '(' expression ')'
     def expression(self):
         # 0 or 1 parenthese
         ret = {'expression': self.comparison()}
