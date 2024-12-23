@@ -51,7 +51,6 @@ class Parser:
 
     # program ::= statements
     def program(self):
-        print("PROGRAM")
 
         # Strip newlines at start
         while self.checkToken(TokenType.NEWLINE):
@@ -80,13 +79,11 @@ class Parser:
         # PRINT expression
         if self.checkToken(TokenType.print):
             ret = {'print_statement': None}
-            print("STATEMENT-PRINT")
             self.nextToken()
 
             ret['print_statement'] = self.expression()
         # IF comparison THEN {statement} END
         elif self.checkToken(TokenType.if_):
-            print("STATEMENT-IF")
             self.nextToken()
             ret = {
                 'if_statement': {
@@ -102,7 +99,6 @@ class Parser:
             while not self.checkToken(TokenType.end):
                 # ELSE IF comparison THEN {statement}
                 if self.checkToken(TokenType.else_) and self.peekToken.kind is TokenType.if_:
-                    print("STATEMENT-ELSEIF")
                     self.nextToken()
                     self.nextToken()
 
@@ -120,7 +116,6 @@ class Parser:
 
                 # ELSE
                 elif self.checkToken(TokenType.else_):
-                    print("STATEMENT-ELSE")
                     if 'alternative' not in upper:
                         upper['alternative'] = list()
                     d = {'else_statement': {
@@ -136,7 +131,6 @@ class Parser:
             self.match(TokenType.end)
         # WHILE comparison DO nl {statement nl} end nl
         elif self.checkToken(TokenType.while_):
-            print("STATEMENT-WHILE")
             self.nextToken()
             ret = {
                 'while_statement': {
@@ -154,7 +148,6 @@ class Parser:
             self.match(TokenType.end)
         # "GOTO" ident
         elif self.checkToken(TokenType.goto):
-            print("STATEMENT-GOTO")
             self.nextToken()
             self.labelsGotoed.add(self.curToken.text)
             ret = {
@@ -163,7 +156,6 @@ class Parser:
             self.match(TokenType.IDENT)
         # "LET" ident "=" expression
         elif self.checkToken(TokenType.let):
-            print("STATEMENT-LET")
             self.nextToken()
 
             # Check if ident in symbols, if not we add it and emit it in headerLine
@@ -175,7 +167,7 @@ class Parser:
             }}
             self.match(TokenType.IDENT)
             self.match(TokenType.EQ)
-            ret['right'] = self.sum()
+            ret['right'] = self.expression()
             ret = {'let_statement': ret}
         # "INPUT" ident
         elif self.checkToken(TokenType.input):
@@ -193,7 +185,6 @@ class Parser:
         elif self.checkToken(TokenType.IDENT):
             # "IDENT" = expression
             if self.peekToken.kind is TokenType.EQ:
-                print("ASSIGN-STATEMENT")
                 ret = {'left': {
                     'ident': {'text': self.curToken.text}
                 }}
@@ -202,7 +193,6 @@ class Parser:
                 ret['right'] = self.sum()
                 ret = {'assign_statement': ret}
             elif self.peekToken.kind is TokenType.COLON:
-                print("STATEMENT-LABEL")
 
                 # Check if this label already exist
                 if self.curToken.text in self.labelsDeclared:
@@ -225,7 +215,6 @@ class Parser:
 
     # expression ::= comparison
     def expression(self):
-        print("EXPRESSION")
         # 0 or 1 parenthese
         hasParent = False
         if self.checkToken(TokenType.LPARENT):
@@ -238,7 +227,6 @@ class Parser:
 
     # comparison ::= sum (("==" | "!=" | ">" | ">=" | "<" | "<=") sum)*
     def comparison(self):
-        print("COMPARISON")
 
         ret = self.sum()
         while self.isComparisonOp():
@@ -253,7 +241,6 @@ class Parser:
 
     # sum ::= term (op term)*
     def sum(self):
-        print("SUM")
 
         ret = self.term()
         # And then 0 or more +/- and term
@@ -271,7 +258,6 @@ class Parser:
 
     # term ::= unary {( "/" | "*" ) unary}
     def term(self):
-        print("TERM")
 
         ret = self.unary()
         while self.checkToken(TokenType.SLASH) or self.checkToken(TokenType.ASTERISK):
@@ -287,7 +273,6 @@ class Parser:
 
     # unary ::= ["+" | "-"] value
     def unary(self):
-        print("UNARY")
 
         if self.checkToken(TokenType.PLUS) or self.checkToken(TokenType.MINUS):
             ret = {
@@ -303,7 +288,6 @@ class Parser:
 
     # value ::= number | string | ident
     def value(self):
-        print(f"VALUE ({self.curToken.text})")
 
         if self.checkToken(TokenType.NUMBER):
             ret = {'number': {
@@ -329,7 +313,6 @@ class Parser:
         return {'value': ret}
 
     def nl(self):
-        print("NEWLINE")
 
         # Need at least one newline
         self.match(TokenType.NEWLINE)

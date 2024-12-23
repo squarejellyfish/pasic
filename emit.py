@@ -1,4 +1,5 @@
 # Emitter object keeps track of the generated code and outputs it.
+from os import stat
 from sys import stdin, stdout
 
 class Emitter:
@@ -7,6 +8,8 @@ class Emitter:
         self.header = ""
         self.code = ""
         self.staticVarCount = 0
+        self.stackTable = dict() # position of var in stack
+        self.stack = 4 # reserve 4 bytes for rbp himself
 
     def fromdict(self, input: dict=dict()):
         assert 'program' in input
@@ -17,6 +20,8 @@ class Emitter:
         self.emitLine('')
         self.emitLine('section .text')
         self.emitLine('_start:')
+        self.emitLine('\tpush rbp')
+        self.emitLine('\tmov rbp, rsp')
         statements = input['program']['statements']
         for statement in statements:
             if 'print_statement' in statement:
@@ -25,6 +30,9 @@ class Emitter:
                 if 'number' in expr_value:
                     text = expr_value['number']['text']
                     self.headerLine(f'static_{self.staticVarCount}: db "{text}", 0x0A')
+                elif 'string' in expr_value:
+                    text = expr_value['string']['text']
+                    self.headerLine(f'static_{self.staticVarCount}: db "{text}", 0x0A')
 
                 self.emitLine(f'\tmov rax, 1') # SYS_WRITE = 1
                 self.emitLine(f'\tmov rdi, 1') # stdout = 1
@@ -32,6 +40,21 @@ class Emitter:
                 self.emitLine(f'\tmov rdx, {len(text) + 1}') # stdout = 1
                 self.emitLine(f'\tsyscall')
                 self.staticVarCount += 1
+            elif 'let_statement' in statement:
+                left, right = statement['let_statement']['left'], statement['let_statement']['right']
+                right = self.getExprValue(right['expression'])
+                if 'number' in right:
+                    value, size = int(right['number']['text']), 4 # 4 bytes, 32-bit int
+
+                self.emitLine(f'\t; -- let_statement --')
+                varName = left['ident']['text']
+                if varName not in self.stackTable:
+                    self.stackTable[varName] = self.stack
+                    self.emitLine(f'\tmov DWORD [rbp - {self.stack}], {value}')
+                    self.stack += size
+                else:
+                    self.emitLine(f'\tmov DWORD [rbp - {self.stackTable[varName]}], {value}')
+                
 
         # SYS_EXIT
         self.emitLine(f'')
