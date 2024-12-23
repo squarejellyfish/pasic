@@ -28,7 +28,7 @@ def main():
     emitter.fromdict(program)
     emitter.writeFile()
 
-    subprocess.run(["nasm", "-felf64", outputName.name])
+    subprocess.run(["nasm", "-felf64", "-g", outputName.name])
     subprocess.run(["ld", "-o", outputName.stem, f'{outputName.stem}.o'])
     execute = subprocess.run([f"./{outputName.stem}"])
     print(f'return code: {execute.returncode}')

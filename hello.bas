@@ -1,7 +1,7 @@
-print(123 + 2 + 4)
+let x = 100
 
-let x = (2 - 1)
-let y = 1 / 2
+while x do
+    print(x / 2)
+    x = x - 1
+end
 
-print(x)
-print(y)
