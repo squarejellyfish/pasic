@@ -9,7 +9,8 @@ class Emitter:
         self.staticVarCount = 0
         self.stackTable = dict()  # position of var in stack
         self.stack = 4  # reserve 4 bytes for rbp himself
-        self.labelTable = {'if': 0, 'end': 0, 'while': 0} # for: 'while' 'if' 'for'
+        self.labelTable = {'if': {'count': 0, 'stack': []}, 'if_end': {'count': 0, 'stack': []}, 'while': {
+            'count': 0, 'stack': []}, 'while_end': {'count': 0, 'stack': []}}
 
     def fromdict(self, input: dict = dict()):
         assert 'program' in input
@@ -89,14 +90,15 @@ class Emitter:
         elif 'assign_statement' in statement:
             self.emitLine(f'\t; -- assign_statement')
             left, right_expr = statement['assign_statement']['left'], statement['assign_statement']['right']
-            varName, right_expr = left['ident']['text'], self.getExprValue(right_expr)
+            varName, right_expr = left['ident']['text'], self.getExprValue(
+                right_expr)
             self.emitExpr(right_expr)
             # result will be at top of stack
             self.emitLine(f'\tpop rax')
             if varName not in self.stackTable:
                 assert False, 'Variable cross-reference should be handle in parsing stage'
             else:
-              self.emitLine(
+                self.emitLine(
                     f'\tmov DWORD [rbp - {self.stackTable[varName]}], eax')
         elif 'label_statement' in statement:
             self.emitLine(f'\t; -- label_statement --')
@@ -114,60 +116,69 @@ class Emitter:
             # result on top of stack
             self.emitLine(f'\tpop rax')
             self.emitLine(f'\ttest rax, rax')
-            self.emitLine(f'\tje IF_{self.labelTable['if']}')
+            self.emitLine(f'\tje IF_{self.labelTable['if']['count']}')
+            self.addrStackPush('if')
             for stmt in body:
                 self.emitStatement(stmt)
-            self.emitLine(f'\tjmp END_{self.labelTable['end']}')
-            alternative, end = statement['if_statement'].get('alternative', []), False
+            self.emitLine(f'\tjmp END_{self.labelTable['if_end']['count']}')
+            self.addrStackPush('if_end')
+            alternative, end = statement['if_statement'].get(
+                'alternative', []), False
             for stmt in alternative:
-                if 'else_statement' in stmt: end = True
+                if 'else_statement' in stmt:
+                    end = True
                 self.emitStatement(stmt)
 
             # 'else' will setup end jmp label for us, if no alternative, setup ourself
-            if not end: # no else, but has elif
-                self.emitLine(f'IF_{self.labelTable['if']}: ; unused label')
-                self.labelTable['if'] += 1
-                self.emitLine(f'END_{self.labelTable['end']}:')
-                self.labelTable['end'] += 1
+            if not end:  # no else, but has elif
+                addr = self.addrStackPop('if')
+                self.emitLine(f'IF_{addr}:')
+                addr = self.addrStackPop('if_end')
+                self.emitLine(f'END_{addr}:')
             # result will be at top of stack
         elif 'elseif_statement' in statement:
             self.emitLine(f'\t; -- elseif_statement')
-            self.emitLine(f'IF_{self.labelTable['if']}:')
-            self.labelTable['if'] += 1
+            addr = self.addrStackPop('if')
+            self.emitLine(f'IF_{addr}:')
             condition, body = statement['elseif_statement']['condition'], statement['elseif_statement']['body']
             condition = self.getExprValue(condition)
             self.emitExpr(condition)
             # result on top of stack
             self.emitLine(f'\tpop rax')
             self.emitLine(f'\ttest rax, rax')
-            self.emitLine(f'\tje IF_{self.labelTable['if']}')
+            self.emitLine(f'\tje IF_{self.labelTable['if']['count']}')
+            self.addrStackPush('if')
             for stmt in body:
                 self.emitStatement(stmt)
-            self.emitLine(f'\tjmp END_{self.labelTable['end']}')
+            addr = self.addrStackPeek('if_end')
+            self.emitLine(f'\tjmp END_{addr}')
         elif 'else_statement' in statement:
             self.emitLine(f'\t; -- else_statement --')
-            self.emitLine(f'IF_{self.labelTable['if']}:')
-            self.labelTable['if'] += 1
+            addr = self.addrStackPop('if')
+            self.emitLine(f'IF_{addr}:')
             body = statement['else_statement']['body']
             for stmt in body:
                 self.emitStatement(stmt)
-            self.emitLine(f'END_{self.labelTable['end']}:')
-            self.labelTable['end'] += 1
+            addr = self.addrStackPop('if_end')
+            self.emitLine(f'END_{addr}:')
         elif 'while_statement' in statement:
             self.emitLine(f'\t; -- while_statement --')
-            self.emitLine(f'WHILE_{self.labelTable['while']}:')
+            self.emitLine(f'WHILE_{self.labelTable['while']['count']}:')
+            self.addrStackPush('while')
             condition, body = statement['while_statement']['condition'], statement['while_statement']['body']
             condition = self.getExprValue(condition)
             self.emitExpr(condition)
             # result on top of stack
             self.emitLine(f'\tpop rax')
             self.emitLine(f'\ttest rax, rax')
-            self.emitLine(f'\tje END_{self.labelTable['end']}')
+            self.emitLine(f'\tje END_WHILE_{self.labelTable['while_end']['count']}')
+            self.addrStackPush('while_end')
             for stmt in body:
                 self.emitStatement(stmt)
-            self.emitLine(f'\tjmp WHILE_{self.labelTable['while']}')
-            self.emitLine(f'END_{self.labelTable['end']}:')
-            self.labelTable['while'] += 1
+            addr = self.addrStackPop('while')
+            self.emitLine(f'\tjmp WHILE_{addr}')
+            addr = self.addrStackPop('while_end')
+            self.emitLine(f'END_WHILE_{addr}:')
         elif 'return_statement' in statement:
             exprs = self.getExprValue(statement['return_statement'])
             self.emitExpr(exprs)
@@ -175,7 +186,6 @@ class Emitter:
             self.emitLine(f'\tmov rax, 60')  # SYS_EXIT
             self.emitLine(f'\tmov rdi, [rsp]')
             self.emitLine(f'\tsyscall')
-
 
     def emitExpr(self, exprs: list):
         '''
@@ -218,6 +228,16 @@ class Emitter:
             elif 'string' in expr:
                 raise NotImplementedError(
                     'String operation is not implemented')
+
+    def addrStackPush(self, key: str):
+        self.labelTable[key]['stack'].append(self.labelTable[key]['count'])
+        self.labelTable[key]['count'] += 1
+
+    def addrStackPop(self, key: str):
+        return self.labelTable[key]['stack'].pop(-1)
+
+    def addrStackPeek(self, key: str):
+        return self.labelTable[key]['stack'][-1]
 
     @staticmethod
     def getExprValue(expr: dict):
