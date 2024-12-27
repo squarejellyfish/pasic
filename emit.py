@@ -1,7 +1,6 @@
 # Emitter object keeps track of the generated code and outputs it.
 from lex import SYMBOLS_IMPL
 
-assert SYMBOLS_IMPL == 15, "Exhaustive handling of operation, forgot to implement something?"
 
 class Emitter:
     def __init__(self, fullPath):
@@ -54,11 +53,13 @@ class Emitter:
             outputFile.write(self.header + self.code + self.ender)
 
     def emitStatement(self, statement: dict):
+        assert SYMBOLS_IMPL == 17, "Exhaustive handling of operation, notice that not all symbols need to be handled here, only those need a operation"
         if 'print_statement' in statement:
             # SYS_WRITE syscall
             self.emitLine(f'\t; -- print_statement --')
             expr_postfix = self.getExprValue(
                 statement['print_statement']['expression'])
+            print(expr_postfix)
             if len(expr_postfix) == 1 and 'string' in expr_postfix[0]:
                 text = expr_postfix[0]['string']['text']
                 self.headerLine(
@@ -66,15 +67,33 @@ class Emitter:
                 self.emitLine(f'\tmov rax, 1')  # SYS_WRITE = 1
                 self.emitLine(f'\tmov rdi, 1')  # stdout = 1
                 rsi_arg = f'static_{self.staticVarCount}'
-                self.emitLine(f'\tmov rsi, {rsi_arg}')  # stdout = 1
-                self.emitLine(f'\tmov rdx, {len(text) + 1}')  # stdout = 1
+                self.emitLine(f'\tmov rsi, {rsi_arg}')  # mem location
+                self.emitLine(f'\tmov rdx, {len(text) + 1}')  # length
                 self.emitLine(f'\tsyscall')
                 self.staticVarCount += 1
-            else:
+            else: # is a number, we call builtin function dump
                 self.emitExpr(expr_postfix)
                 # result will be at top of stack
                 self.emitLine(f'\tpop rdi')
                 self.emitLine(f'\tcall dump')
+        elif 'write_statement' in statement:
+            # SYS_WRITE but only write 1 char
+            self.emitLine(f'\t; -- write_statement --')
+            args = statement['write_statement']['args']
+            assert len(args) == 2, f"Function write only takes 2 args, {len(args)} found."
+            left, right = self.getExprValue(args[0]), self.getExprValue(args[1])
+            self.emitExpr(right)
+            self.emitExpr(left)
+            print(left, right)
+            if 'ident' in left[0]:
+                self.emitLine(f'\tpop rsi')
+            else:
+                self.emitLine(f'\tmov rsi, rsp') # rsi takes address
+                self.emitLine(f'\tadd rsp, 4')
+            self.emitLine(f'\tpop rdx') # pop arg length
+            self.emitLine(f'\tmov rax, 1')  # SYS_WRITE = 1
+            self.emitLine(f'\tmov rdi, 1')  # stdout = 1
+            self.emitLine(f'\tsyscall')
         elif 'let_statement' in statement:
             self.emitLine(f'\t; -- let_statement --')
             left, right_expr = statement['let_statement']['left'], statement['let_statement']['right']
@@ -239,8 +258,16 @@ class Emitter:
                     self.emitLine(f'\tidiv rbx')
                     self.emitLine(f'\tpush rdx')
             elif 'string' in expr:
-                raise NotImplementedError(
-                    'String operation is not implemented')
+                if len(exprs) == 1:
+                    self.headerLine(
+                        f'static_{self.staticVarCount}: db "{expr['string']['text']}", 0x0A')
+                    self.headerLine(
+                        f'static_{self.staticVarCount}_len: equ $-static_{self.staticVarCount}')
+                    self.emitLine(f'\tpush static_{self.staticVarCount}')
+                    self.staticVarCount += 1
+                else:
+                    raise NotImplementedError(
+                        'String operation is not implemented')
 
     def addrStackPush(self, key: str):
         self.labelTable[key]['stack'].append(self.labelTable[key]['count'])

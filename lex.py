@@ -2,7 +2,7 @@ import enum
 import sys
 
 # Change this everytime we add symbols
-SYMBOLS_IMPL = 15
+SYMBOLS_IMPL = 17
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
@@ -60,6 +60,7 @@ class Lexer:
 
         # Check the first character of this token to see if we can decide what it is.
         # If it is a multiple character operator (e.g., !=), number, identifier, or keyword then we will process the rest.
+        assert SYMBOLS_IMPL == 17, "Exhaustive handling of tokens, notice that not all tokens need to be handle here"
         if self.curChar == '+':
             token = Token(self.curChar, TokenType.PLUS, self.curLine, self.linePos)
         elif self.curChar == '-':
@@ -149,6 +150,8 @@ class Lexer:
             token = Token(self.curChar, TokenType.COLON, self.curLine, self.linePos)
         elif self.curChar == '%':
             token = Token(self.curChar, TokenType.MOD, self.curLine, self.linePos)
+        elif self.curChar == ',':
+            token = Token(self.curChar, TokenType.COMMA, self.curLine, self.linePos)
         else:
             # Unknown token!
             self.abort("Unknown token: " + self.curChar)
@@ -197,6 +200,7 @@ class TokenType(enum.Enum):
     LPARENT = 4
     RPARENT = 5
     COLON = 6
+    COMMA = 7
     # Keywords.
     label = 101
     goto = 102
@@ -213,6 +217,7 @@ class TokenType(enum.Enum):
     not_ = 113
     else_ = 114
     return_ = 115
+    write = 116
     # Operators.
     EQ = 201  
     PLUS = 202

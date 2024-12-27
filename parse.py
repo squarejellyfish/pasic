@@ -3,7 +3,6 @@ from lex import *
 
 # Parser object keeps track of current token and checks if the code matches the grammar.
 
-assert SYMBOLS_IMPL == 15, "Exhaustive handling of operation, forgot to implement something?"
 
 class Parser:
     def __init__(self, lexer):
@@ -72,12 +71,24 @@ class Parser:
         # Check first token to see which statement
 
         ret = None
+        assert SYMBOLS_IMPL == 17, "Exhaustive handling of operation, notice that not all symbols need to be handled, only those who need a operation"
         # PRINT expression
         if self.checkToken(TokenType.print):
             ret = {'print_statement': None}
             self.nextToken()
 
             ret['print_statement'] = self.expression()
+        # WRITE (addr: expression, length)
+        elif self.checkToken(TokenType.write):
+            ret = {
+                'write_statement': {'args': []}
+            }
+            self.nextToken()
+            self.match(TokenType.LPARENT)
+            ret['write_statement']['args'].append(self.expression())
+            self.match(TokenType.COMMA)
+            ret['write_statement']['args'].append(self.expression())
+            self.match(TokenType.RPARENT)
         # IF expression THEN {statement} END
         elif self.checkToken(TokenType.if_):
             self.nextToken()
@@ -283,6 +294,14 @@ class Parser:
             return {'unary': ret}
         else:
             return {'unary': self.value()}
+
+    # TODO: function calls
+    # primary: (from python grammar)
+    #     | primary '.' NAME
+    #     | primary genexp
+    #     | primary '(' [arguments] ')'
+    #     | primary '[' slices ']'
+    #     | atom
 
     # value ::= '(' expression ')' | number | string | ident
     def value(self):
