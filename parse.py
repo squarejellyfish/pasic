@@ -3,6 +3,7 @@ from lex import *
 
 # Parser object keeps track of current token and checks if the code matches the grammar.
 
+assert SYMBOLS_IMPL == 15, "Exhaustive handling of operation, forgot to implement something?"
 
 class Parser:
     def __init__(self, lexer):
@@ -253,11 +254,11 @@ class Parser:
 
         return {'sum': ret}
 
-    # term ::= unary {( "/" | "*" ) unary}
+    # term ::= unary {( "/" | "*" | "%" ) unary}
     def term(self):
 
         ret = self.unary()
-        while self.checkToken(TokenType.SLASH) or self.checkToken(TokenType.ASTERISK):
+        while self.checkToken(TokenType.SLASH) or self.checkToken(TokenType.ASTERISK) or self.checkToken(TokenType.MOD):
             ret = {
                 'operator': {
                     'text': self.curToken.text,

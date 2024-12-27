@@ -1,4 +1,7 @@
 # Emitter object keeps track of the generated code and outputs it.
+from lex import SYMBOLS_IMPL
+
+assert SYMBOLS_IMPL == 15, "Exhaustive handling of operation, forgot to implement something?"
 
 class Emitter:
     def __init__(self, fullPath):
@@ -198,6 +201,10 @@ class Emitter:
                 self.emitLine(
                     f'\tmov eax, [rbp - {self.stackTable[expr['ident']['text']]}]')
                 self.emitLine(f'\tpush rax')
+            elif 'unary_operator' in expr:
+                self.emitLine(f'\tpop rax')
+                self.emitLine(f'\tneg rax')
+                self.emitLine(f'\tpush rax')
             elif 'operator' in expr:
                 operator = expr['operator']
                 if operator == '+':  # pop top of stack to rax, and add back to top of stack
@@ -215,7 +222,7 @@ class Emitter:
                     self.emitLine(f'\tpop rbx')
                     self.emitLine(f'\tpop rax')
                     self.emitLine(f'\txor rdx, rdx')  # remainder will be here
-                    self.emitLine(f'\tdiv rbx')
+                    self.emitLine(f'\tidiv rbx')
                     self.emitLine(f'\tpush rax')
                 elif operator == '==':
                     self.emitLine(f'\tpop rax')
@@ -225,6 +232,12 @@ class Emitter:
                     self.emitLine(f'\tcmp rax, rbx')
                     self.emitLine(f'\tcmove rcx, rdx')
                     self.emitLine(f'\tpush rcx')
+                elif operator == '%':
+                    self.emitLine(f'\tpop rbx')
+                    self.emitLine(f'\tpop rax')
+                    self.emitLine(f'\txor rdx, rdx')  # remainder will be here
+                    self.emitLine(f'\tidiv rbx')
+                    self.emitLine(f'\tpush rdx')
             elif 'string' in expr:
                 raise NotImplementedError(
                     'String operation is not implemented')
@@ -251,7 +264,12 @@ class Emitter:
                     return
                 get(expr[items[0]])
             elif len(items) == 2:  # unary operation
-                ret.append(expr)
+                get(expr['arg'])
+                if expr['text'] == '-':
+                    if 'number' in ret[-1]:
+                        ret[-1]['number']['text'] = f'-{ret[-1]['number']['text']}'
+                    else:
+                        ret.append({'unary_operator': expr['text']})
             elif len(items) == 3:
                 get(expr['left'])
                 get(expr['right'])

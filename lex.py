@@ -1,6 +1,9 @@
 import enum
 import sys
 
+# Change this everytime we add symbols
+SYMBOLS_IMPL = 15
+
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
@@ -144,6 +147,8 @@ class Lexer:
             token = Token(self.curChar, TokenType.EOF, self.curLine, self.linePos)
         elif self.curChar == ':':
             token = Token(self.curChar, TokenType.COLON, self.curLine, self.linePos)
+        elif self.curChar == '%':
+            token = Token(self.curChar, TokenType.MOD, self.curLine, self.linePos)
         else:
             # Unknown token!
             self.abort("Unknown token: " + self.curChar)
@@ -220,3 +225,4 @@ class TokenType(enum.Enum):
     LTEQ = 209
     GT = 210
     GTEQ = 211
+    MOD = 212
