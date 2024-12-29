@@ -6,31 +6,92 @@ geometry: margin=20mm
 
 Basic-ish language in Python implemented from scratch. Compiled to x86_64 native instruction set.
 
+Heavily inspired by [Rexim @TsodingDaily](https://www.youtube.com/@TsodingDaily) 
+
 ## Usage
 
 ```bash
 python pasic.py <input_file>
 ```
 
-**NOTE**: might want to `pip install -r requirements.txt` first
-
 ## Milestones
 
-- Compiled to native x86_64
-- Generate AST and XML
-- Error reporting on syntax and (some) logical error
+- [x] Compiled to native x86_64
+- [x] Generate AST
+- [x] Error reporting on syntax and (some) logical error
+- [x] Turing Complete (check `./examples/5-rule110.bas`)
 
 ## Examples
 
-Hello, world:
+### Hello, world
 
-```python
+```basic
 print("hello, world!")
+```
+
+### Variables
+
+```basic
+let x = 1
+let s = "string is pointer"
+
+print(x)
+print(s)
+
+x = 69
+print(x)
+print("variables re-assignment")
+```
+
+### Arithmetics
+
+```basic
+let x = (12 + 8) * 3 - 20 / 4
+
+print(x) ' 55
+```
+
+### Bitwise Operation
+
+```basic
+print(1 << 4) ' 16
+print(16 >> 2) ' 4
+print(1024 | 1) ' 1025
+print(1025 ^ 1) ' 1024
+print(1025 & 1) ' 1
+```
+
+### Condition and Loops
+
+```basic
+let x = 1
+
+if x == 1 then
+    print("x is 1")
+else
+    print("x is not 1")
+end
+
+if x > 0 then
+    print("x greater than 0")
+else if x < 100 then
+    print("else if")
+end
+
+if x then
+    print("ident expression will also evaluate")
+end
+
+x = 100
+while x do ' only while loop for now
+    print(x)
+    x = x - 1
+end
 ```
 
 Printing from 1 to 99:
 
-```python
+```basic
 let x = 1
 while x < 100 do
     print(x)

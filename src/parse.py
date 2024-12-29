@@ -1,5 +1,5 @@
 import sys
-from lex import *
+from src.lex import *
 
 # Parser object keeps track of current token and checks if the code matches the grammar.
 
@@ -74,7 +74,7 @@ class Parser:
         # Check first token to see which statement
 
         ret = None
-        assert SYMBOLS_IMPL == 22, "Exhaustive handling of operation, notice that not all symbols need to be handled, only those who need a statement"
+        assert TokenType.TOK_COUNT.value == 42, "Exhaustive handling of operation, notice that not all symbols need to be handled, only those who need a statement"
         # PRINT expression
         if self.checkToken(TokenType.print):
             ret = {'print_statement': None}

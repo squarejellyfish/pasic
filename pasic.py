@@ -1,14 +1,13 @@
-from lex import *
-from parse import *
-from emit import *
+from src.lex import *
+from src.parse import *
+from src.emit import *
 from pathlib import Path
 import sys
 import json
 import subprocess
-from dicttoxml import dicttoxml
 
 def main():
-    if len(sys.argv) != 2:
+    if len(sys.argv) < 2:
         sys.exit("Error: no input file.")
     fileName = sys.argv[1]
     outputName = Path("out.asm")
@@ -20,9 +19,6 @@ def main():
     parser = Parser(lexer)
 
     program = parser.program()
-    xml = dicttoxml(program, root=False, return_bytes=False, attr_type=True)
-    with open('parse.xml', 'w') as file:
-        file.write(xml)
     with open('parse.json', 'w') as file:
         json.dump(program, file, indent=2)
     emitter.fromdict(program)
@@ -30,8 +26,9 @@ def main():
 
     subprocess.run(["nasm", "-felf64", "-g", outputName.name])
     subprocess.run(["ld", "-o", outputName.stem, f'{outputName.stem}.o'])
-    # execute = subprocess.run([f"./{outputName.stem}"])
-    # print(f'return code: {execute.returncode}')
+    if '-r' in sys.argv or '--run' in sys.argv:
+        execute = subprocess.run([f"./{outputName.stem}"])
+        print(f'return code: {execute.returncode}')
 
 if __name__ == "__main__":
     main()

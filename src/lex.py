@@ -2,9 +2,6 @@ from enum import auto
 import enum
 import sys
 
-# Change this everytime we add symbols
-SYMBOLS_IMPL = 22
-
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
@@ -61,7 +58,7 @@ class Lexer:
 
         # Check the first character of this token to see if we can decide what it is.
         # If it is a multiple character operator (e.g., !=), number, identifier, or keyword then we will process the rest.
-        assert SYMBOLS_IMPL == 22, "Exhaustive handling of tokens, notice that not all tokens need to be handle here, only those that need to be lexed"
+        assert TokenType.TOK_COUNT.value == 42, "Exhaustive handling of tokens, notice that not all tokens need to be handle here, only those that need to be lexed"
         if self.curChar == '+':
             token = Token(self.curChar, TokenType.PLUS, self.curLine, self.linePos)
         elif self.curChar == '-':
@@ -114,8 +111,6 @@ class Lexer:
             startPos = self.curPos
 
             while self.curChar != '"':
-                if self.curChar == '\r' or self.curChar == '\n' or self.curChar == '\t' or self.curChar == '\\' or self.curChar == '%':
-                    self.abort("Illegal character in string: " + self.curChar)
                 self.nextChar()
 
             text = self.source[startPos:self.curPos]
@@ -183,6 +178,7 @@ class Token:
 
     @staticmethod
     def isKeyword(text):
+        assert TokenType.KEYWORDS_COUNT.value == 14, "Exhaustive handling in isKeyword(), forgot to add support for a keyword?"
         for kind in TokenType:
             if kind.value >= 100 and kind.value < 200:
                 # special case (reserved words)
@@ -190,10 +186,10 @@ class Token:
                     return (True, kind)
                 elif kind is TokenType.while_ and text == str(kind.name)[:-1]:
                     return (True, kind)
-                elif kind is TokenType.and_ and text == str(kind.name)[:-1]:
-                    return (True, kind)
-                elif kind is TokenType.or_ and text == str(kind.name)[:-1]:
-                    return (True, kind)
+                # elif kind is TokenType.and_ and text == str(kind.name)[:-1]:
+                #     return (True, kind)
+                # elif kind is TokenType.or_ and text == str(kind.name)[:-1]:
+                #     return (True, kind)
                 elif kind is TokenType.not_ and text == str(kind.name)[:-1]:
                     return (True, kind)
                 elif kind is TokenType.else_ and text == str(kind.name)[:-1]:
@@ -207,7 +203,7 @@ class Token:
 
 # TokenType is our enum for all the types of tokens.
 class TokenType(enum.Enum):
-    EOF = -1
+    EOF = auto()
     NEWLINE = auto()
     NUMBER = auto()
     IDENT = auto()
@@ -216,23 +212,22 @@ class TokenType(enum.Enum):
     RPARENT = auto()
     COLON = auto()
     COMMA = auto()
+    SYMS_COUNT = auto()
     # Keywords.
     label = 101
     goto = auto()
     print = auto()
-    input = auto()
     let = auto()
     if_ = auto()
     then = auto()
     end = auto()
     while_ = auto()
     do = auto()
-    and_ = auto()
-    or_ = auto()
     not_ = auto()
     else_ = auto()
     return_ = auto()
     write = auto()
+    KEYWORDS_COUNT = write - label + 2
     # Operators.
     EQ = 201
     PLUS = auto()
@@ -251,3 +246,5 @@ class TokenType(enum.Enum):
     BAND = auto() # bitwise and
     BOR = auto() # bitwise or
     BXOR = auto() # bitwise xor
+    OPS_COUNT = BXOR - EQ + 2
+    TOK_COUNT = SYMS_COUNT + KEYWORDS_COUNT + OPS_COUNT

@@ -1,6 +1,5 @@
 # Emitter object keeps track of the generated code and outputs it.
-from lex import SYMBOLS_IMPL
-
+from src.lex import TokenType
 
 class Emitter:
     def __init__(self, fullPath):
@@ -53,21 +52,22 @@ class Emitter:
             outputFile.write(self.header + self.code + self.ender)
 
     def emitStatement(self, statement: dict):
-        assert SYMBOLS_IMPL == 22, "Exhaustive handling of operation, notice that not all symbols need to be handled here, only those is a statement"
+        assert TokenType.TOK_COUNT.value == 42, "Exhaustive handling of operation, notice that not all symbols need to be handled here, only those is a statement"
         if 'print_statement' in statement:
             # SYS_WRITE syscall
             self.emitLine(f'\t; -- print_statement --')
             expr_postfix = self.getExprValue(
                 statement['print_statement']['expression'])
             if len(expr_postfix) == 1 and 'string' in expr_postfix[0]:
-                text = expr_postfix[0]['string']['text']
+                text = bytes(expr_postfix[0]['string']['text'].encode('utf-8')).decode('unicode_escape')
+                output = ', '.join([hex(ord(char)) for char in text])
                 self.headerLine(
-                    f'static_{self.staticVarCount}: db "{text}", 0x0A')
+                    f'static_{self.staticVarCount}: db {output}')
                 self.emitLine(f'\tmov rax, 1')  # SYS_WRITE = 1
                 self.emitLine(f'\tmov rdi, 1')  # stdout = 1
                 rsi_arg = f'static_{self.staticVarCount}'
                 self.emitLine(f'\tmov rsi, {rsi_arg}')  # mem location
-                self.emitLine(f'\tmov rdx, {len(text) + 1}')  # length
+                self.emitLine(f'\tmov rdx, {len(text)}')  # length
                 self.emitLine(f'\tsyscall')
                 self.staticVarCount += 1
             else: # is a number, we call builtin function dump
@@ -299,8 +299,10 @@ class Emitter:
                     raise NotImplementedError(f'Operation {operator} is not implemented')
             elif 'string' in expr:
                 if len(exprs) == 1:
+                    text = bytes(expr['string']['text'].encode('utf-8')).decode('unicode_escape')
+                    output = ', '.join([hex(ord(char)) for char in text])
                     self.headerLine(
-                        f'static_{self.staticVarCount}: db "{expr['string']['text']}", 0x0A')
+                        f'static_{self.staticVarCount}: db {output}')
                     self.headerLine(
                         f'static_{self.staticVarCount}_len: equ $-static_{self.staticVarCount}')
                     self.emitLine(f'\tpush static_{self.staticVarCount}')

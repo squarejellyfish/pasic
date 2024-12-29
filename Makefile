@@ -1,8 +1,9 @@
 TARGET = out
-SRC = main.bas
+SRC = ./src/lex.py ./src/emit.py ./src/parse.py
+EX_FILE = main.bas
 
-$(TARGET): parse.py lex.py emit.py pasic.py $(SRC)
-	python pasic.py $(SRC)
+$(TARGET): pasic.py $(SRC) $(EX_FILE)
+	python pasic.py $(EX_FILE)
 
 asm: out.asm
 	nasm -felf64 -g out.asm
