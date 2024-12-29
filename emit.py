@@ -87,7 +87,7 @@ class Emitter:
                 self.emitLine(f'\tpop rsi')
             else:
                 self.emitLine(f'\tmov rsi, rsp') # rsi takes address
-                self.emitLine(f'\tadd rsp, 4')
+                self.emitLine(f'\tadd rsp, 8')
             self.emitLine(f'\tpop rdx') # pop arg length
             self.emitLine(f'\tmov rax, 1')  # SYS_WRITE = 1
             self.emitLine(f'\tmov rdi, 1')  # stdout = 1
