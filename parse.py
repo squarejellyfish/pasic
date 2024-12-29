@@ -44,6 +44,9 @@ class Parser:
     def isComparisonOp(self):
         return self.checkToken(TokenType.GT) or self.checkToken(TokenType.GTEQ) or self.checkToken(TokenType.LT) or self.checkToken(TokenType.LTEQ) or self.checkToken(TokenType.EQEQ) or self.checkToken(TokenType.NOTEQ)
 
+    def isShiftOp(self):
+        return self.checkToken(TokenType.GTGT) or self.checkToken(TokenType.LTLT)
+
     # program ::= statements
     def program(self):
 
@@ -71,7 +74,7 @@ class Parser:
         # Check first token to see which statement
 
         ret = None
-        assert SYMBOLS_IMPL == 17, "Exhaustive handling of operation, notice that not all symbols need to be handled, only those who need a operation"
+        assert SYMBOLS_IMPL == 22, "Exhaustive handling of operation, notice that not all symbols need to be handled, only those who need a statement"
         # PRINT expression
         if self.checkToken(TokenType.print):
             ret = {'print_statement': None}
@@ -234,19 +237,77 @@ class Parser:
         ret = {'expression': self.comparison()}
         return ret
 
-    # comparison ::= sum (("==" | "!=" | ">" | ">=" | "<" | "<=") sum)*
+    # comparison ::= bor_expr (("==" | "!=" | ">" | ">=" | "<" | "<=") bor_expr)*
     def comparison(self):
 
-        ret = self.sum()
+        ret = self.bor_expr()
         while self.isComparisonOp():
             ret = {'comparison_op': {
                 'text': self.curToken.text,
                 'left': ret,
             }}
             self.nextToken()
-            ret['comparison_op']['right'] = self.sum()
+            ret['comparison_op']['right'] = self.bor_expr()
 
         return {'comparison': ret}
+
+    # bor_expr  ::= xor_expr
+    #           |  bor_expr "|" xor_expr
+    def bor_expr(self):
+        ret = self.xor_expr()
+        while self.checkToken(TokenType.BOR):
+            ret = {
+                'bor_op': {
+                    'text': self.curToken.text,
+                    'left': ret,
+                }
+            }
+            self.nextToken()
+            ret['bor_op']['right'] = self.xor_expr()
+        return ret
+
+    # xor_expr ::= and_expr
+    #           |  xor_expr "^" and_expr
+    def xor_expr(self):
+        ret = self.band_expr()
+        while self.checkToken(TokenType.BXOR):
+            ret = {
+                'xor_op': {
+                    'text': self.curToken.text,
+                    'left': ret,
+                }
+            }
+            self.nextToken()
+            ret['xor_op']['right'] = self.band_expr()
+        return ret
+
+    # band_expr ::= shift_expr ("&" shift_expr)*
+    def band_expr(self):
+        ret = self.shift_expr()
+        while self.checkToken(TokenType.BAND):
+            ret = {
+                'band_op': {
+                    'text': self.curToken.text,
+                    'left': ret,
+                }
+            }
+            self.nextToken()
+            ret['band_op']['right'] = self.shift_expr()
+        return ret
+
+    # shift_expr ::= sum (("<<" | ">>") sum)*
+    def shift_expr(self):
+        ret = self.sum()
+        while self.isShiftOp():
+            ret = {
+                'shift_op': {
+                    'text': self.curToken.text,
+                    'left': ret,
+                }
+            }
+            self.nextToken()
+            ret['shift_op']['right'] = self.sum()
+        return ret
 
     # sum ::= term (op term)*
     def sum(self):
@@ -334,9 +395,6 @@ class Parser:
         return {'value': ret}
 
     def nl(self):
-
-        # Need at least one newline
-        self.match(TokenType.NEWLINE)
-        # But more is fine too
+        # 0 or more newline
         while self.checkToken(TokenType.NEWLINE):
             self.nextToken()

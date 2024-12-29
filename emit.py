@@ -10,7 +10,7 @@ class Emitter:
         self.code = ""
         self.staticVarCount = 0
         self.stackTable = dict()  # position of var in stack
-        self.stack = 4  # reserve 4 bytes for rbp himself
+        self.stack = 8  # reserve 4 bytes for rbp himself
         self.labelTable = {'if': {'count': 0, 'stack': []}, 'if_end': {'count': 0, 'stack': []}, 'while': {
             'count': 0, 'stack': []}, 'while_end': {'count': 0, 'stack': []}}
 
@@ -53,13 +53,12 @@ class Emitter:
             outputFile.write(self.header + self.code + self.ender)
 
     def emitStatement(self, statement: dict):
-        assert SYMBOLS_IMPL == 17, "Exhaustive handling of operation, notice that not all symbols need to be handled here, only those need a operation"
+        assert SYMBOLS_IMPL == 22, "Exhaustive handling of operation, notice that not all symbols need to be handled here, only those is a statement"
         if 'print_statement' in statement:
             # SYS_WRITE syscall
             self.emitLine(f'\t; -- print_statement --')
             expr_postfix = self.getExprValue(
                 statement['print_statement']['expression'])
-            print(expr_postfix)
             if len(expr_postfix) == 1 and 'string' in expr_postfix[0]:
                 text = expr_postfix[0]['string']['text']
                 self.headerLine(
@@ -84,7 +83,6 @@ class Emitter:
             left, right = self.getExprValue(args[0]), self.getExprValue(args[1])
             self.emitExpr(right)
             self.emitExpr(left)
-            print(left, right)
             if 'ident' in left[0]:
                 self.emitLine(f'\tpop rsi')
             else:
@@ -101,14 +99,14 @@ class Emitter:
             self.emitExpr(right_expr)
             # result will be at top of stack
             self.emitLine(f'\tpop rax')
-            varName, size = left['ident']['text'], 4
+            varName, size = left['ident']['text'], 8
             if varName not in self.stackTable:
                 self.stackTable[varName] = self.stack
-                self.emitLine(f'\tmov DWORD [rbp - {self.stack}], eax')
+                self.emitLine(f'\tmov QWORD [rbp - {self.stack}], rax')
                 self.stack += size
             else:
                 self.emitLine(
-                    f'\tmov DWORD [rbp - {self.stackTable[varName]}], eax')
+                    f'\tmov QWORD [rbp - {self.stackTable[varName]}], rax')
         elif 'assign_statement' in statement:
             self.emitLine(f'\t; -- assign_statement')
             left, right_expr = statement['assign_statement']['left'], statement['assign_statement']['right']
@@ -121,7 +119,7 @@ class Emitter:
                 assert False, 'Variable cross-reference should be handle in parsing stage'
             else:
                 self.emitLine(
-                    f'\tmov DWORD [rbp - {self.stackTable[varName]}], eax')
+                    f'\tmov QWORD [rbp - {self.stackTable[varName]}], rax')
         elif 'label_statement' in statement:
             self.emitLine(f'\t; -- label_statement --')
             text = statement['label_statement']['text']
@@ -218,7 +216,7 @@ class Emitter:
                 self.emitLine(f'\tpush {expr['number']['text']}')
             elif 'ident' in expr:
                 self.emitLine(
-                    f'\tmov eax, [rbp - {self.stackTable[expr['ident']['text']]}]')
+                    f'\tmov rax, [rbp - {self.stackTable[expr['ident']['text']]}]')
                 self.emitLine(f'\tpush rax')
             elif 'unary_operator' in expr:
                 self.emitLine(f'\tpop rax')
@@ -257,6 +255,48 @@ class Emitter:
                     self.emitLine(f'\txor rdx, rdx')  # remainder will be here
                     self.emitLine(f'\tidiv rbx')
                     self.emitLine(f'\tpush rdx')
+                elif operator == '<<':
+                    self.emitLine(f'\tpop rcx')
+                    self.emitLine(f'\tpop rax')
+                    self.emitLine(f'\tshl rax, cl')
+                    self.emitLine(f'\tpush rax')
+                elif operator == '>>':
+                    self.emitLine(f'\tpop rcx')
+                    self.emitLine(f'\tpop rax')
+                    self.emitLine(f'\tshr rax, cl')
+                    self.emitLine(f'\tpush rax')
+                elif operator == '|':
+                    self.emitLine(f'\tpop rbx')
+                    self.emitLine(f'\tpop rax')
+                    self.emitLine(f'\tor rax, rbx')
+                    self.emitLine(f'\tpush rax')
+                elif operator == '&':
+                    self.emitLine(f'\tpop rbx')
+                    self.emitLine(f'\tpop rax')
+                    self.emitLine(f'\tand rax, rbx')
+                    self.emitLine(f'\tpush rax')
+                elif operator == '^':
+                    self.emitLine(f'\tpop rbx')
+                    self.emitLine(f'\tpop rax')
+                    self.emitLine(f'\txor rax, rbx')
+                    self.emitLine(f'\tpush rax')
+                elif operator == '<' or operator == '>' or operator == '<=' or operator == '>=':
+                    self.emitLine(f'\tpop rbx')
+                    self.emitLine(f'\tpop rax')
+                    self.emitLine(f'\txor rcx, rcx')
+                    self.emitLine(f'\tmov rdx, 1')
+                    self.emitLine(f'\tcmp rax, rbx')
+                    if operator == '<':
+                        self.emitLine(f'\tcmovl rcx, rdx')
+                    elif operator == '>':
+                        self.emitLine(f'\tcmovg rcx, rdx')
+                    elif operator == '<=':
+                        self.emitLine(f'\tcmovle rcx, rdx')
+                    elif operator == '>=':
+                        self.emitLine(f'\tcmovge rcx, rdx')
+                    self.emitLine(f'\tpush rcx')
+                else:
+                    raise NotImplementedError(f'Operation {operator} is not implemented')
             elif 'string' in expr:
                 if len(exprs) == 1:
                     self.headerLine(
@@ -268,6 +308,8 @@ class Emitter:
                 else:
                     raise NotImplementedError(
                         'String operation is not implemented')
+            else:
+                raise NotImplementedError(f'Operation {expr} is not implemented')
 
     def addrStackPush(self, key: str):
         self.labelTable[key]['stack'].append(self.labelTable[key]['count'])

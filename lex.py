@@ -1,8 +1,9 @@
+from enum import auto
 import enum
 import sys
 
 # Change this everytime we add symbols
-SYMBOLS_IMPL = 17
+SYMBOLS_IMPL = 22
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
@@ -48,7 +49,7 @@ class Lexer:
 		
     # Skip comments in the code.
     def skipComment(self):
-        if self.curChar == '#':
+        if self.curChar == "'":
             while self.curChar != '\n':
                 self.nextChar()
 
@@ -60,7 +61,7 @@ class Lexer:
 
         # Check the first character of this token to see if we can decide what it is.
         # If it is a multiple character operator (e.g., !=), number, identifier, or keyword then we will process the rest.
-        assert SYMBOLS_IMPL == 17, "Exhaustive handling of tokens, notice that not all tokens need to be handle here"
+        assert SYMBOLS_IMPL == 22, "Exhaustive handling of tokens, notice that not all tokens need to be handle here, only those that need to be lexed"
         if self.curChar == '+':
             token = Token(self.curChar, TokenType.PLUS, self.curLine, self.linePos)
         elif self.curChar == '-':
@@ -78,21 +79,29 @@ class Lexer:
             else:
                 token = Token(self.curChar, TokenType.EQ, self.curLine, self.linePos)
         elif self.curChar == '>':
-            # Check whether this is token is > or >=
+            # Check whether this is token is > or >= or >>
             if self.peek() == '=':
                 lastChar = self.curChar
                 self.nextChar()
                 token = Token(lastChar + self.curChar, TokenType.GTEQ, self.curLine, self.linePos)
+            elif self.peek() == '>':
+                lastChar = self.curChar
+                self.nextChar()
+                token = Token(lastChar + self.curChar, TokenType.GTGT, self.curLine, self.linePos)
             else:
                 token = Token(self.curChar, TokenType.GT, self.curLine, self.linePos)
         elif self.curChar == '<':
-                # Check whether this is token is < or <=
-                if self.peek() == '=':
-                    lastChar = self.curChar
-                    self.nextChar()
-                    token = Token(lastChar + self.curChar, TokenType.LTEQ, self.curLine, self.linePos)
-                else:
-                    token = Token(self.curChar, TokenType.LT, self.curLine, self.linePos)
+            # Check whether this is token is < or <= or <<
+            if self.peek() == '=':
+                lastChar = self.curChar
+                self.nextChar()
+                token = Token(lastChar + self.curChar, TokenType.LTEQ, self.curLine, self.linePos)
+            elif self.peek() == '<':
+                lastChar = self.curChar
+                self.nextChar()
+                token = Token(lastChar + self.curChar, TokenType.LTLT, self.curLine, self.linePos)
+            else:
+                token = Token(self.curChar, TokenType.LT, self.curLine, self.linePos)
         elif self.curChar == '!': 
             if self.peek() == '=':
                 lastChar = self.curChar
@@ -152,6 +161,12 @@ class Lexer:
             token = Token(self.curChar, TokenType.MOD, self.curLine, self.linePos)
         elif self.curChar == ',':
             token = Token(self.curChar, TokenType.COMMA, self.curLine, self.linePos)
+        elif self.curChar == '&':
+            token = Token(self.curChar, TokenType.BAND, self.curLine, self.linePos)
+        elif self.curChar == '|':
+            token = Token(self.curChar, TokenType.BOR, self.curLine, self.linePos)
+        elif self.curChar == '^':
+            token = Token(self.curChar, TokenType.BXOR, self.curLine, self.linePos)
         else:
             # Unknown token!
             self.abort("Unknown token: " + self.curChar)
@@ -193,41 +208,46 @@ class Token:
 # TokenType is our enum for all the types of tokens.
 class TokenType(enum.Enum):
     EOF = -1
-    NEWLINE = 0
-    NUMBER = 1
-    IDENT = 2
-    STRING = 3
-    LPARENT = 4
-    RPARENT = 5
-    COLON = 6
-    COMMA = 7
+    NEWLINE = auto()
+    NUMBER = auto()
+    IDENT = auto()
+    STRING = auto()
+    LPARENT = auto()
+    RPARENT = auto()
+    COLON = auto()
+    COMMA = auto()
     # Keywords.
     label = 101
-    goto = 102
-    print = 103
-    input = 104
-    let = 105
-    if_ = 106
-    then = 107
-    end = 108
-    while_ = 109
-    do = 110
-    and_ = 111
-    or_ = 112
-    not_ = 113
-    else_ = 114
-    return_ = 115
-    write = 116
+    goto = auto()
+    print = auto()
+    input = auto()
+    let = auto()
+    if_ = auto()
+    then = auto()
+    end = auto()
+    while_ = auto()
+    do = auto()
+    and_ = auto()
+    or_ = auto()
+    not_ = auto()
+    else_ = auto()
+    return_ = auto()
+    write = auto()
     # Operators.
-    EQ = 201  
-    PLUS = 202
-    MINUS = 203
-    ASTERISK = 204
-    SLASH = 205
-    EQEQ = 206
-    NOTEQ = 207
-    LT = 208
-    LTEQ = 209
-    GT = 210
-    GTEQ = 211
-    MOD = 212
+    EQ = 201
+    PLUS = auto()
+    MINUS = auto()
+    ASTERISK = auto()
+    SLASH = auto()
+    EQEQ = auto()
+    NOTEQ = auto()
+    LT = auto()
+    LTEQ = auto()
+    GT = auto()
+    GTEQ = auto()
+    MOD = auto()
+    LTLT = auto() # left shift
+    GTGT = auto() # right shift
+    BAND = auto() # bitwise and
+    BOR = auto() # bitwise or
+    BXOR = auto() # bitwise xor

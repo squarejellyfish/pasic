@@ -1,12 +1,17 @@
 TARGET = out
+SRC = main.bas
 
-$(TARGET): parse.py lex.py emit.py pasic.py hello.bas
-	python pasic.py hello.bas
+$(TARGET): parse.py lex.py emit.py pasic.py $(SRC)
+	python pasic.py $(SRC)
 
 asm: out.asm
 	nasm -felf64 -g out.asm
 	ld out.o -o out
 	./out
+
+rule110: rule110.c
+	gcc rule110.c -o rule110
+	./rule110
 
 .PHONY: clean all
 clean:
