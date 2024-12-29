@@ -2,8 +2,6 @@ let x = 1
 let s = "string is pointer"
 
 print(x)
-print(s)
 
-x = 69
+x = 69 ' variables re-assignment
 print(x)
-print("variables re-assignment")

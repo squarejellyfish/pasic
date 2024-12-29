@@ -1,4 +1,4 @@
-TARGET = out
+TARGET = main
 SRC = ./src/lex.py ./src/emit.py ./src/parse.py
 EX_FILE = main.bas
 

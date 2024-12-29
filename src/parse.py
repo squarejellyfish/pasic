@@ -179,18 +179,6 @@ class Parser:
             self.match(TokenType.EQ)
             ret['right'] = self.expression()
             ret = {'let_statement': ret}
-        # "INPUT" ident
-        elif self.checkToken(TokenType.input):
-            self.abort(f'Input statement is not implemented')
-            # print("STATEMENT-INPUT")
-            # self.nextToken()
-            #
-            # # Check if ident in symbols, if not we add it
-            # if self.curToken.text not in self.symbols:
-            #     self.symbols.add(self.curToken.text)
-            #
-            # # Emit scanf but also validate the input. If invalid, set the variable to 0 and clear the input.
-            # self.match(TokenType.IDENT)
         # "IDENT"
         elif self.checkToken(TokenType.IDENT):
             # "IDENT" = expression

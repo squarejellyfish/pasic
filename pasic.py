@@ -10,7 +10,7 @@ def main():
     if len(sys.argv) < 2:
         sys.exit("Error: no input file.")
     fileName = sys.argv[1]
-    outputName = Path("out.asm")
+    outputName = Path(f"{Path(fileName).stem}.asm")
     with open(fileName, 'r') as inputFile:
         source = inputFile.read()
 

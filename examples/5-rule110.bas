@@ -1,7 +1,6 @@
 'program that proves pasic language is turing complete'
 let N = 60
 
-let char = "* "
 let board = 1
 
 let i = 0
@@ -9,13 +8,13 @@ while i < N do
     let j = 0
     while j < N do
         if (board >> (N - j - 1)) & 1 then
-            write(char, 1) 
+            print("*")
         else
-            write(char + 1, 1) 
+            print(" ")
         end
         j = j + 1
     end
-    print("")
+    print("\n")
 
     let nboard = 0
     let j = N - 1
