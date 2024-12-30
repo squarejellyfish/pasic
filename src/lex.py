@@ -3,7 +3,6 @@ import enum
 import sys
 
 # TODO: support for macros, kind of like the c style macros: #define (macros) (something)
-# TODO: syscall interface, with the keyword syscall(SYSCALL_NUM, args...)
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
@@ -61,7 +60,7 @@ class Lexer:
 
         # Check the first character of this token to see if we can decide what it is.
         # If it is a multiple character operator (e.g., !=), number, identifier, or keyword then we will process the rest.
-        assert TokenType.TOK_COUNT.value == 43, "Exhaustive handling of tokens, notice that not all tokens need to be handle here, only those that need to be lexed"
+        assert TokenType.TOK_COUNT.value == 45, "Exhaustive handling of tokens, notice that not all tokens need to be handle here, only those that need to be lexed"
         if self.curChar == '+':
             token = Token(self.curChar, TokenType.PLUS, self.curLine, self.linePos)
         elif self.curChar == '-':
@@ -165,12 +164,23 @@ class Lexer:
             token = Token(self.curChar, TokenType.BOR, self.curLine, self.linePos)
         elif self.curChar == '^':
             token = Token(self.curChar, TokenType.BXOR, self.curLine, self.linePos)
+        elif self.curChar == '#':
+            token = Token(self.curChar, TokenType.BANG, self.curLine, self.linePos)
         else:
             # Unknown token!
             self.abort("Unknown token: " + self.curChar)
 			
         self.nextChar()
         return token
+
+    def lexfile(self):
+        tokens = list()
+        while True:
+            token = self.getToken()
+            tokens.append(token)
+            if token.kind == TokenType.EOF:
+                break
+        return tokens
 
 class Token:
     def __init__(self, tokenText, tokenKind, curLine=0, linePos=0):
@@ -181,7 +191,7 @@ class Token:
 
     @staticmethod
     def isKeyword(text):
-        assert TokenType.KEYWORDS_COUNT.value == 15, "Exhaustive handling in isKeyword(), forgot to add support for a keyword?"
+        assert TokenType.KEYWORDS_COUNT.value == 16, "Exhaustive handling in isKeyword(), forgot to add support for a keyword?"
         for kind in TokenType:
             if kind.value >= 100 and kind.value < 200:
                 # special case (reserved words)
@@ -215,6 +225,7 @@ class TokenType(enum.Enum):
     RPARENT = auto()
     COLON = auto()
     COMMA = auto()
+    BANG = auto()
     SYMS_COUNT = auto()
     # Keywords.
     label = 101
@@ -230,6 +241,7 @@ class TokenType(enum.Enum):
     else_ = auto()
     return_ = auto()
     write = auto()
+    define = auto()
     syscall = auto()
     KEYWORDS_COUNT = syscall - label + 2
     # Operators.

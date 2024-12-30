@@ -9,6 +9,7 @@ class Parser:
         self.lexer: Lexer = lexer
 
         self.symbols = set()
+        self.macros = dict()
         self.labelsDeclared = set()
         self.labelsGotoed = set()
 
@@ -70,11 +71,12 @@ class Parser:
             ret['statements'].append(self.statement())
         return ret
 
+    # statement ::= statement | expression
     def statement(self):
         # Check first token to see which statement
 
         ret = None
-        assert TokenType.TOK_COUNT.value == 43, "Exhaustive handling of operation, notice that not all symbols need to be handled, only those who need a statement"
+        assert TokenType.TOK_COUNT.value == 45, "Exhaustive handling of operation, notice that not all symbols need to be handled, only those who need a statement"
         # PRINT expression
         if self.checkToken(TokenType.print):
             ret = {'print_statement': None}
@@ -212,6 +214,21 @@ class Parser:
             else:
                 self.nextToken()
                 ret = {'return_statement': {'value': self.expression()}}
+        elif self.checkToken(TokenType.BANG):
+            self.nextToken()
+            if self.checkToken(TokenType.define):
+                self.nextToken()
+                text = self.curToken.text
+                self.match(TokenType.IDENT)
+                body = list()
+                while not self.checkToken(TokenType.NEWLINE):
+                    body.append(self.curToken)
+                    self.nextToken()
+                self.match(TokenType.NEWLINE)
+                self.macros[text] = {'body': body}
+                print(self.macros)
+            else:
+                raise NotImplementedError(f"Preprocessing only supports define macros right now, found {self.curToken}")
         else:
             ret = self.expression()
             # self.abort(f"Invalid statement at {
@@ -345,7 +362,6 @@ class Parser:
         else:
             return {'unary': self.primary()}
 
-    # TODO: function calls
     # primary: (from python grammar)
     #     | primary '.' NAME
     #     | primary genexp
@@ -393,13 +409,17 @@ class Parser:
             self.nextToken()
         elif self.checkToken(TokenType.IDENT):
             # Ensure var exists
-            if self.curToken.text not in self.symbols:
+            if self.curToken.text in self.symbols:
+                ret = {'ident': {
+                    'text': self.curToken.text
+                }}
+                self.nextToken()
+            elif self.curToken.text in self.macros:
+                body: list = self.macros[self.curToken.text]['body']
+                raise NotImplementedError("Expanding macros...")
+            else:
                 self.abort(f"Referencing variable before assignment: {
                            self.curToken.text}")
-            ret = {'ident': {
-                'text': self.curToken.text
-            }}
-            self.nextToken()
         else:
             self.abort(f"Unexpected token at {self.curToken.text}")
         return {'value': ret}

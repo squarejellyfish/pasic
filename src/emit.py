@@ -53,7 +53,7 @@ class Emitter:
             outputFile.write(self.header + self.code + self.ender)
 
     def emitStatement(self, statement: dict):
-        assert TokenType.TOK_COUNT.value == 43, "Exhaustive handling of operation, notice that not all symbols need to be handled here, only those is a statement"
+        assert TokenType.TOK_COUNT.value == 45, "Exhaustive handling of operation, notice that not all symbols need to be handled here, only those is a statement"
         if 'print_statement' in statement:
             # SYS_WRITE syscall
             self.emitLine(f'\t; -- print_statement --')
