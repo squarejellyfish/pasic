@@ -74,7 +74,7 @@ class Parser:
         # Check first token to see which statement
 
         ret = None
-        assert TokenType.TOK_COUNT.value == 42, "Exhaustive handling of operation, notice that not all symbols need to be handled, only those who need a statement"
+        assert TokenType.TOK_COUNT.value == 43, "Exhaustive handling of operation, notice that not all symbols need to be handled, only those who need a statement"
         # PRINT expression
         if self.checkToken(TokenType.print):
             ret = {'print_statement': None}
@@ -213,8 +213,9 @@ class Parser:
                 self.nextToken()
                 ret = {'return_statement': {'value': self.expression()}}
         else:
-            self.abort(f"Invalid statement at {
-                       self.curToken.text} ({self.curToken.kind.name})")
+            ret = self.expression()
+            # self.abort(f"Invalid statement at {
+            #            self.curToken.text} ({self.curToken.kind.name})")
 
         self.nl()  # newline
         return ret
@@ -329,7 +330,7 @@ class Parser:
             ret['operator']['right'] = self.unary()
         return {'term': ret}
 
-    # unary ::= ["+" | "-"] value
+    # unary ::= ["+" | "-"] primary
     def unary(self):
 
         if self.checkToken(TokenType.PLUS) or self.checkToken(TokenType.MINUS):
@@ -339,10 +340,10 @@ class Parser:
                 }
             }
             self.nextToken()
-            ret['unary_operator']['arg'] = self.value()
+            ret['unary_operator']['arg'] = self.primary()
             return {'unary': ret}
         else:
-            return {'unary': self.value()}
+            return {'unary': self.primary()}
 
     # TODO: function calls
     # primary: (from python grammar)
@@ -351,6 +352,27 @@ class Parser:
     #     | primary '(' [arguments] ')'
     #     | primary '[' slices ']'
     #     | atom
+
+    # primary ::= ('syscall' | 'write' | 'print') ['(' [expression (',' expression)*] ')']
+    #           | value
+    def primary(self):
+        if self.checkToken(TokenType.syscall):
+            self.nextToken()
+            self.match(TokenType.LPARENT)
+            ret = {'call_expression': {
+                'text': TokenType.syscall.name, 'args': []}}
+            args_list = ret['call_expression']['args']
+            # need at least one arg (syscall number)
+            args_list.append(self.expression())
+            while not self.checkToken(TokenType.RPARENT):
+                self.match(TokenType.COMMA)
+                args_list.append(self.expression())
+            if len(args_list) < 1 or len(args_list) > 7:
+                self.abort(f"Syscall statement expects 1 to 7 args, found {len(args_list)}")
+            self.match(TokenType.RPARENT)
+        else:
+            ret = self.value()
+        return ret
 
     # value ::= '(' expression ')' | number | string | ident
     def value(self):

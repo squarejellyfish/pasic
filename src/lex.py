@@ -2,6 +2,9 @@ from enum import auto
 import enum
 import sys
 
+# TODO: support for macros, kind of like the c style macros: #define (macros) (something)
+# TODO: syscall interface, with the keyword syscall(SYSCALL_NUM, args...)
+
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
@@ -58,7 +61,7 @@ class Lexer:
 
         # Check the first character of this token to see if we can decide what it is.
         # If it is a multiple character operator (e.g., !=), number, identifier, or keyword then we will process the rest.
-        assert TokenType.TOK_COUNT.value == 42, "Exhaustive handling of tokens, notice that not all tokens need to be handle here, only those that need to be lexed"
+        assert TokenType.TOK_COUNT.value == 43, "Exhaustive handling of tokens, notice that not all tokens need to be handle here, only those that need to be lexed"
         if self.curChar == '+':
             token = Token(self.curChar, TokenType.PLUS, self.curLine, self.linePos)
         elif self.curChar == '-':
@@ -178,7 +181,7 @@ class Token:
 
     @staticmethod
     def isKeyword(text):
-        assert TokenType.KEYWORDS_COUNT.value == 14, "Exhaustive handling in isKeyword(), forgot to add support for a keyword?"
+        assert TokenType.KEYWORDS_COUNT.value == 15, "Exhaustive handling in isKeyword(), forgot to add support for a keyword?"
         for kind in TokenType:
             if kind.value >= 100 and kind.value < 200:
                 # special case (reserved words)
@@ -227,7 +230,8 @@ class TokenType(enum.Enum):
     else_ = auto()
     return_ = auto()
     write = auto()
-    KEYWORDS_COUNT = write - label + 2
+    syscall = auto()
+    KEYWORDS_COUNT = syscall - label + 2
     # Operators.
     EQ = 201
     PLUS = auto()

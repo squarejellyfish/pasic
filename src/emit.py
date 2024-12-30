@@ -1,4 +1,5 @@
 # Emitter object keeps track of the generated code and outputs it.
+from ast import Not
 from src.lex import TokenType
 
 class Emitter:
@@ -52,7 +53,7 @@ class Emitter:
             outputFile.write(self.header + self.code + self.ender)
 
     def emitStatement(self, statement: dict):
-        assert TokenType.TOK_COUNT.value == 42, "Exhaustive handling of operation, notice that not all symbols need to be handled here, only those is a statement"
+        assert TokenType.TOK_COUNT.value == 43, "Exhaustive handling of operation, notice that not all symbols need to be handled here, only those is a statement"
         if 'print_statement' in statement:
             # SYS_WRITE syscall
             self.emitLine(f'\t; -- print_statement --')
@@ -206,6 +207,10 @@ class Emitter:
             self.emitLine(f'\tmov rax, 60')  # SYS_EXIT
             self.emitLine(f'\tmov rdi, [rsp]')
             self.emitLine(f'\tsyscall')
+        else:
+            expr = self.getExprValue(statement)
+            print(expr)
+            self.emitExpr(expr)
 
     def emitExpr(self, exprs: list):
         '''
@@ -300,6 +305,7 @@ class Emitter:
             elif 'string' in expr:
                 if len(exprs) == 1:
                     text = bytes(expr['string']['text'].encode('utf-8')).decode('unicode_escape')
+                    text += '\0'
                     output = ', '.join([hex(ord(char)) for char in text])
                     self.headerLine(
                         f'static_{self.staticVarCount}: db {output}')
@@ -310,6 +316,16 @@ class Emitter:
                 else:
                     raise NotImplementedError(
                         'String operation is not implemented')
+            elif 'call_expression' in expr:
+                name, argc = expr['call_expression']['text'], expr['call_expression']['argc']
+                if name == 'syscall':
+                    convention = ['rax', 'rdi', 'rsi', 'rdx', 'r10', 'r8', 'r9']
+                    for i in reversed(range(argc)):
+                        self.emitLine(f'\tpop {convention[i]}')
+                    self.emitLine('\tsyscall')
+                    self.emitLine('\tpush rax') # push result on to the stack
+                else:
+                    raise NotImplementedError(f"Call expression {name} is not implemented")
             else:
                 raise NotImplementedError(f'Operation {expr} is not implemented')
 
@@ -334,13 +350,21 @@ class Emitter:
                     ret.append(expr)
                     return
                 get(expr[items[0]])
-            elif len(items) == 2:  # unary operation
-                get(expr['arg'])
-                if expr['text'] == '-':
-                    if 'number' in ret[-1]:
-                        ret[-1]['number']['text'] = f'-{ret[-1]['number']['text']}'
-                    else:
-                        ret.append({'unary_operator': expr['text']})
+            elif len(items) == 2:
+                if 'arg' in expr:  # unary operation
+                    get(expr['arg'])
+                    if expr['text'] == '-':
+                        if 'number' in ret[-1]:
+                            ret[-1]['number']['text'] = f'-{ret[-1]['number']['text']}'
+                        else:
+                            ret.append({'unary_operator': expr['text']})
+                elif 'args' in expr: # call expression
+                    args = expr['args']
+                    text = expr['text']
+                    if text == 'syscall':
+                        assert len(args) > 0 and len(args) <= 7, f"Syscall statement expects 1 to 7 args, found {len(args)}"
+                        for arg in args: get(arg)
+                        ret.append({'call_expression': {'text': text, 'argc': len(args)}})
             elif len(items) == 3:
                 get(expr['left'])
                 get(expr['right'])
