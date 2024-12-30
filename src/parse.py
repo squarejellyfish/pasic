@@ -3,11 +3,11 @@ from src.lex import *
 
 # Parser object keeps track of current token and checks if the code matches the grammar.
 
-
 class Parser:
-    def __init__(self, lexer):
-        self.lexer: Lexer = lexer
-
+    def __init__(self, tokens: list[Token]):
+        self.tokens = tokens
+        self.ip = 0 # instruction pointer
+ 
         self.symbols = set()
         self.macros = dict()
         self.labelsDeclared = set()
@@ -35,11 +35,12 @@ class Parser:
     # Advances the current token.
     def nextToken(self):
         self.curToken = self.peekToken
-        self.peekToken = self.lexer.getToken()
+        self.peekToken = self.tokens[self.ip] if self.ip != len(self.tokens) else None
+        self.ip += 1
 
     def abort(self, message):
-        eprint(f"{self.lexer.sourceName}:{self.curToken.curLine}:{
-               self.curToken.linePos} Error: " + message)
+        filename, line, col = self.curToken.pos
+        eprint(f"{filename}:{line}:{col} Error: " + message)
         sys.exit(69)
 
     def isComparisonOp(self):
@@ -48,9 +49,56 @@ class Parser:
     def isShiftOp(self):
         return self.checkToken(TokenType.GTGT) or self.checkToken(TokenType.LTLT)
 
+    def expandMacros(self):
+        keep = []
+        while not self.checkToken(TokenType.EOF):
+            if not self.checkToken(TokenType.BANG):
+                keep.append(self.curToken)
+                self.nextToken()
+                continue
+
+            self.nextToken()
+            if self.checkToken(TokenType.define):
+                self.nextToken()
+                text = self.curToken.text
+                self.match(TokenType.IDENT)
+                body = list()
+                while not self.checkToken(TokenType.NEWLINE):
+                    body.append(self.curToken)
+                    self.nextToken()
+                self.match(TokenType.NEWLINE)
+                self.macros[text] = {'body': body, 'expandCount': 0}
+            else:
+                raise NotImplementedError(f"Preprocessing only supports define macros right now, found {self.curToken}")
+        keep.append(self.curToken)
+
+        i = 0
+        while i < len(keep):
+            curr = keep[i]
+            if curr.text in self.macros:
+                body: list = self.macros[curr.text]['body']
+                for j, token in enumerate(body):
+                    token = Token(token.text, token.kind, curr.pos) # new token instance with the pos updated
+                    body[j] = token
+                keep[i:i + 1] = body
+                self.macros[curr.text]['expandCount'] += 1
+                assert self.macros[curr.text]['expandCount'] < 1000, "Macros expansion exceeds 1000"
+            i += 1
+
+        # for token in keep:
+        #     print(token)
+        self.tokens = keep
+
+        self.ip = 0
+        self.curToken = None
+        self.peekToken = None
+        self.nextToken()
+        self.nextToken()  # Call twice ot init curToken and peekToken
+
     # program ::= statements
     def program(self):
 
+        self.expandMacros()
         # Strip newlines at start
         while self.checkToken(TokenType.NEWLINE):
             self.nextToken()
@@ -214,21 +262,6 @@ class Parser:
             else:
                 self.nextToken()
                 ret = {'return_statement': {'value': self.expression()}}
-        elif self.checkToken(TokenType.BANG):
-            self.nextToken()
-            if self.checkToken(TokenType.define):
-                self.nextToken()
-                text = self.curToken.text
-                self.match(TokenType.IDENT)
-                body = list()
-                while not self.checkToken(TokenType.NEWLINE):
-                    body.append(self.curToken)
-                    self.nextToken()
-                self.match(TokenType.NEWLINE)
-                self.macros[text] = {'body': body}
-                print(self.macros)
-            else:
-                raise NotImplementedError(f"Preprocessing only supports define macros right now, found {self.curToken}")
         else:
             ret = self.expression()
             # self.abort(f"Invalid statement at {
@@ -414,9 +447,6 @@ class Parser:
                     'text': self.curToken.text
                 }}
                 self.nextToken()
-            elif self.curToken.text in self.macros:
-                body: list = self.macros[self.curToken.text]['body']
-                raise NotImplementedError("Expanding macros...")
             else:
                 self.abort(f"Referencing variable before assignment: {
                            self.curToken.text}")

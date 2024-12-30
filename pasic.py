@@ -15,8 +15,8 @@ def main():
         source = inputFile.read()
 
     lexer = Lexer(source, fileName)
+    parser = Parser(lexer.lexfile())
     emitter = Emitter(outputName.name)
-    parser = Parser(lexer)
 
     program = parser.program()
     with open('parse.json', 'w') as file:
