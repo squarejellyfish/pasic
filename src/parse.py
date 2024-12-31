@@ -2,16 +2,20 @@ import sys
 from src.lex import *
 
 # Parser object keeps track of current token and checks if the code matches the grammar.
+# TODO: arbituary access to memory
+# TODO: dynamic stack padding allocation
+# TODO: array (allocate on mem or on stack?)
 
 class Parser:
     def __init__(self, tokens: list[Token]):
         self.tokens = tokens
         self.ip = 0 # instruction pointer
  
-        self.symbols = set()
-        self.macros = dict()
-        self.labelsDeclared = set()
-        self.labelsGotoed = set()
+        self.symbols: set[str] = set()
+        self.macros: dict[str, dict] = dict()
+        self.labelsDeclared: set[str] = set()
+        self.labelsGotoed: set[str] = set()
+        self.ast = None
 
         self.curToken = None
         self.peekToken = None
@@ -110,6 +114,7 @@ class Parser:
         for label in self.labelsGotoed:
             if label not in self.labelsDeclared:
                 self.abort("Attempting to GOTO to undeclared label: " + label)
+        self.ast = output
         return output
 
     # statements ::= statement*
@@ -124,7 +129,7 @@ class Parser:
         # Check first token to see which statement
 
         ret = None
-        assert TokenType.TOK_COUNT.value == 45, "Exhaustive handling of operation, notice that not all symbols need to be handled, only those who need a statement"
+        assert TokenType.TOK_COUNT.value == 47, "Exhaustive handling of operation, notice that not all symbols need to be handled, only those who need a statement"
         # PRINT expression
         if self.checkToken(TokenType.print):
             ret = {'print_statement': None}
@@ -423,7 +428,7 @@ class Parser:
             ret = self.value()
         return ret
 
-    # value ::= '(' expression ')' | number | string | ident
+    # value ::= '(' expression ')' | number | string | ident | list
     def value(self):
 
         if self.checkToken(TokenType.LPARENT):
@@ -451,8 +456,31 @@ class Parser:
                 self.abort(f"Referencing variable before assignment: {
                            self.curToken.text}")
         else:
-            self.abort(f"Unexpected token at {self.curToken.text}")
+            ret = self.list_expression()
+
         return {'value': ret}
+
+    # list ::= '[' [expression (',' expression)*] ']'
+    def list_expression(self):
+        if self.checkToken(TokenType.LBRACKET):
+            ret = {'list_expression': {'items': []}}
+            self.nextToken()
+            consumed = False
+            while not self.checkToken(TokenType.RBRACKET):
+                if not consumed:
+                    ret['list_expression']['items'].append(self.expression())
+                    consumed = True
+                    continue
+                self.match(TokenType.COMMA)
+                ret['list_expression']['items'].append(self.expression())
+            self.match(TokenType.RBRACKET)
+
+            # print(ret['list_expression']['items'])
+        else:
+            self.abort(f"Unexpected token at {self.curToken.text}")
+
+        return ret
+
 
     def nl(self):
         # 0 or more newline

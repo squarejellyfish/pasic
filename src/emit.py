@@ -1,6 +1,7 @@
 # Emitter object keeps track of the generated code and outputs it.
-from ast import Not
 from src.lex import TokenType
+
+STACK_PADDING = 1024
 
 class Emitter:
     def __init__(self, fullPath):
@@ -10,7 +11,7 @@ class Emitter:
         self.code = ""
         self.staticVarCount = 0
         self.stackTable = dict()  # position of var in stack
-        self.stack = 8  # reserve 4 bytes for rbp himself
+        self.stack = 8  # reserve 8 bytes for rbp himself
         self.labelTable = {'if': {'count': 0, 'stack': []}, 'if_end': {'count': 0, 'stack': []}, 'while': {
             'count': 0, 'stack': []}, 'while_end': {'count': 0, 'stack': []}}
 
@@ -19,12 +20,14 @@ class Emitter:
         assert 'statements' in input['program']
 
         self.headerLine('\tglobal _start')
+        self.headerLine('section .bss')
+        self.headerLine('mem: resb 6400000')
         self.headerLine('section .data')
         self.emitLine('')
         self.emitLine('section .text')
         self.emitLine('_start:')
         self.emitLine('\tmov rbp, rsp')  # sync stack pointer
-        self.emitLine('\tsub rsp, 1024')  # reserve space for stack pointer
+        self.emitLine(f'\tsub rsp, {STACK_PADDING}')  # reserve space for stack pointer
         self.enderLine(DUMP)
         statements = input['program']['statements']
         for statement in statements:
@@ -53,7 +56,7 @@ class Emitter:
             outputFile.write(self.header + self.code + self.ender)
 
     def emitStatement(self, statement: dict):
-        assert TokenType.TOK_COUNT.value == 45, "Exhaustive handling of operation, notice that not all symbols need to be handled here, only those is a statement"
+        assert TokenType.TOK_COUNT.value == 47, "Exhaustive handling of operation, notice that not all symbols need to be handled here, only those is a statement"
         if 'print_statement' in statement:
             # SYS_WRITE syscall
             self.emitLine(f'\t; -- print_statement --')
@@ -101,13 +104,7 @@ class Emitter:
             # result will be at top of stack
             self.emitLine(f'\tpop rax')
             varName, size = left['ident']['text'], 8
-            if varName not in self.stackTable:
-                self.stackTable[varName] = self.stack
-                self.emitLine(f'\tmov QWORD [rbp - {self.stack}], rax')
-                self.stack += size
-            else:
-                self.emitLine(
-                    f'\tmov QWORD [rbp - {self.stackTable[varName]}], rax')
+            self.allocVariable(varName, size)
         elif 'assign_statement' in statement:
             self.emitLine(f'\t; -- assign_statement')
             left, right_expr = statement['assign_statement']['left'], statement['assign_statement']['right']
@@ -119,8 +116,7 @@ class Emitter:
             if varName not in self.stackTable:
                 assert False, 'Variable cross-reference should be handle in parsing stage'
             else:
-                self.emitLine(
-                    f'\tmov QWORD [rbp - {self.stackTable[varName]}], rax')
+                self.allocStack(self.stackTable[varName], 0)
         elif 'label_statement' in statement:
             self.emitLine(f'\t; -- label_statement --')
             text = statement['label_statement']['text']
@@ -326,6 +322,21 @@ class Emitter:
                     self.emitLine('\tpush rax') # push result on to the stack
                 else:
                     raise NotImplementedError(f"Call expression {name} is not implemented")
+            elif 'list_expression' in expr:
+                exprs = expr['list_expression']['items']
+                print(exprs)
+                for expr in exprs:
+                    self.emitExpr(expr)
+                # there will be len(exprs) vars on stack after above
+                # head = self.stack
+                for i in range(len(exprs)):
+                    self.emitLine('\tpop rax')
+                    if i == (len(exprs) - 1):
+                        self.emitLine(f'\tmov rbx, rbp')
+                        self.emitLine(f'\tsub rbx, {self.stack}')
+                        self.emitLine(f'\tpush rbx')
+                    self.allocStack(self.stack, 8)
+                raise NotImplementedError(f"list_expression, without de-reference or indexing it's useless")
             else:
                 raise NotImplementedError(f'Operation {expr} is not implemented')
 
@@ -339,6 +350,21 @@ class Emitter:
     def addrStackPeek(self, key: str):
         return self.labelTable[key]['stack'][-1]
 
+    def allocVariable(self, varName: str, size: int):
+        '''
+        Allocate variable in rax on the stack
+        '''
+        if varName not in self.stackTable:
+            self.stackTable[varName] = self.stack
+            assert self.stack < STACK_PADDING, "Local variables overflowed to stack pointer, I'll fix this using dynamic stack padding later"
+            self.allocStack(self.stack, size)
+        else:
+            self.allocStack(self.stackTable[varName], 0)
+
+    def allocStack(self, pos: int, size: int):
+        self.emitLine(f'\tmov QWORD [rbp - {pos}], rax')
+        self.stack += size
+
     @staticmethod
     def getExprValue(expr: dict):
         ret = []
@@ -349,6 +375,15 @@ class Emitter:
                 if 'number' in expr or 'string' in expr or 'ident' in expr:
                     ret.append(expr)
                     return
+                elif 'list_expression' in expr:
+                    elements, list_ret = expr['list_expression']['items'], {'list_expression': {'items': []}}
+                    for element in elements:
+                        # get(element)
+                        element = Emitter.getExprValue(element)
+                        list_ret['list_expression']['items'].append(element)
+                    ret.append(list_ret)
+                    return
+
                 get(expr[items[0]])
             elif len(items) == 2:
                 if 'arg' in expr:  # unary operation
@@ -365,6 +400,8 @@ class Emitter:
                         assert len(args) > 0 and len(args) <= 7, f"Syscall statement expects 1 to 7 args, found {len(args)}"
                         for arg in args: get(arg)
                         ret.append({'call_expression': {'text': text, 'argc': len(args)}})
+                else:
+                    raise NotImplementedError(f'{expr}')
             elif len(items) == 3:
                 get(expr['left'])
                 get(expr['right'])

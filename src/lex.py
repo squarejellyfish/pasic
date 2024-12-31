@@ -3,6 +3,7 @@ import enum
 import sys
 
 # TODO: support for macros, kind of like the c style macros: #define (macros) (something)
+# TODO: use table for lexing?
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
@@ -60,7 +61,7 @@ class Lexer:
 
         # Check the first character of this token to see if we can decide what it is.
         # If it is a multiple character operator (e.g., !=), number, identifier, or keyword then we will process the rest.
-        assert TokenType.TOK_COUNT.value == 45, "Exhaustive handling of tokens, notice that not all tokens need to be handle here, only those that need to be lexed"
+        assert TokenType.TOK_COUNT.value == 47, "Exhaustive handling of tokens, notice that not all tokens need to be handle here, only those that need to be lexed"
         if self.curChar == '+':
             token = Token(self.curChar, TokenType.PLUS, (self.sourceName, self.curLine, self.linePos))
         elif self.curChar == '-':
@@ -166,6 +167,10 @@ class Lexer:
             token = Token(self.curChar, TokenType.BXOR, (self.sourceName, self.curLine, self.linePos))
         elif self.curChar == '#':
             token = Token(self.curChar, TokenType.BANG, (self.sourceName, self.curLine, self.linePos))
+        elif self.curChar == '[':
+            token = Token(self.curChar, TokenType.LBRACKET, (self.sourceName, self.curLine, self.linePos))
+        elif self.curChar == ']':
+            token = Token(self.curChar, TokenType.RBRACKET, (self.sourceName, self.curLine, self.linePos))
         else:
             # Unknown token!
             self.abort("Unknown token: " + self.curChar)
@@ -225,6 +230,8 @@ class TokenType(enum.Enum):
     STRING = auto()
     LPARENT = auto()
     RPARENT = auto()
+    LBRACKET = auto()
+    RBRACKET = auto()
     COLON = auto()
     COMMA = auto()
     BANG = auto()

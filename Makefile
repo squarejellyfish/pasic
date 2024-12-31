@@ -5,10 +5,10 @@ EX_FILE = main.bas
 $(TARGET): pasic.py $(SRC) $(EX_FILE)
 	python pasic.py $(EX_FILE)
 
-asm: out.asm
-	nasm -felf64 -g out.asm
-	ld out.o -o out
-	./out
+asm: main.asm
+	nasm -felf64 -g $(TARGET).asm
+	ld $(TARGET).o -o $(TARGET)
+	./$(TARGET)
 
 rule110: rule110.c
 	gcc rule110.c -o rule110
