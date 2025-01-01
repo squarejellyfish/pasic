@@ -425,6 +425,16 @@ class Parser:
                 self.abort(f"Syscall statement expects 1 to 7 args, found {len(args_list)}")
             self.match(TokenType.RPARENT)
         else:
+            ret = self.pointer()
+        return ret
+
+    # pointer ::= '*' value
+    #           | value
+    def pointer(self):
+        if self.checkToken(TokenType.ASTERISK):
+            self.nextToken()
+            ret = {'pointer': self.value()}
+        else:
             ret = self.value()
         return ret
 

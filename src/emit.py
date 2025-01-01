@@ -336,7 +336,10 @@ class Emitter:
                         self.emitLine(f'\tsub rbx, {self.stack}')
                         self.emitLine(f'\tpush rbx')
                     self.allocStack(self.stack, 8)
-                raise NotImplementedError(f"list_expression, without de-reference or indexing it's useless")
+                # raise NotImplementedError(f"list_expression, without de-reference or indexing it's useless")
+            elif 'pointer' in expr:
+                self.emitLine('pop rax')
+                self.emitLine('push QWORD [rax]')
             else:
                 raise NotImplementedError(f'Operation {expr} is not implemented')
 
@@ -382,6 +385,11 @@ class Emitter:
                         element = Emitter.getExprValue(element)
                         list_ret['list_expression']['items'].append(element)
                     ret.append(list_ret)
+                    return
+                elif 'pointer' in expr:
+                    get(expr['pointer'])
+                    ret.append({'pointer': 'damn'})
+                    print(ret)
                     return
 
                 get(expr[items[0]])
