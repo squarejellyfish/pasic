@@ -16,5 +16,5 @@ rule110: rule110.c
 
 .PHONY: clean all
 clean:
-	rm $(TARGET) $(TARGET).asm $(TARGET).o parse.json parse.xml
+	rm $(TARGET) $(TARGET).asm $(TARGET).o parse.json 
 all: clean $(TARGET)

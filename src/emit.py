@@ -24,8 +24,8 @@ class Emitter:
         assert 'statements' in input['program']
 
         self.headerLine('\tglobal _start')
-        self.headerLine('section .bss')
-        self.headerLine('mem: resb 6400000')
+        # self.headerLine('section .bss')
+        # self.headerLine('mem: resb 6400000')
         self.headerLine('section .data')
         self.emitLine('')
         self.emitLine('section .text')
@@ -104,6 +104,13 @@ class Emitter:
                 self.emitLine(f'\t; -- let_statement --')
                 left, right_expr = statement.left, statement.right
                 right_expr = self.getExprValue(right_expr)
+                varName, size = left.text, 8
+                if statement.args: # means that this is list init statement
+                    arg = statement.args[0]
+                    arg = Emitter.evalExpr(arg)
+                    size = arg * 8
+                    self.allocVariable(varName, size)
+
                 self.emitExpr(right_expr)
                 # result will be at top of stack
                 self.emitLine(f'\tpop rax')
@@ -380,6 +387,23 @@ class Emitter:
     def allocStack(self, pos: int, size: int):
         self.emitLine(f'\tmov QWORD [rbp - {pos}], rax')
         self.stack += size
+
+    @staticmethod
+    def evalExpr(expr: ExpressionNode | BinaryNode) -> int:
+        if expr.typ in ['number']:
+            return int(expr.text)
+        elif expr.typ == 'unary_operator':  # unary operation
+            arg = Emitter.evalExpr(expr.arg)
+            if expr.text == '-':
+                return -arg
+        elif isinstance(expr, ExpressionNode):
+            return Emitter.evalExpr(expr.child)
+        elif isinstance(expr, BinaryNode):
+            left = Emitter.evalExpr(expr.left)
+            right = Emitter.evalExpr(expr.right)
+            return eval(f'{left} {expr.text} {right}')
+        else:
+            raise NotImplementedError(f'evalExpr only supports evaluating integer arithmetics right now')
 
     @staticmethod
     def getExprValue(expr: ExpressionNode | BinaryNode):

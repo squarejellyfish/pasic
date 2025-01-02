@@ -1,13 +1,19 @@
 'program that proves pasic language is turing complete'
-let N = 60
+#define N 100
 
-let board = 1
-
+let board[N] = [0]
 let i = 0
+while i < N - 1 do 
+    *(board + i * 8) = 0 
+    i = i + 1
+end
+*(board + (N - 1) * 8) = 1
+
+i = 0
 while i < N do
     let j = 0
     while j < N do
-        if (board >> (N - j - 1)) & 1 then
+        if *(board + j * 8) then
             print("*")
         else
             print(" ")
@@ -16,28 +22,13 @@ while i < N do
     end
     print("\n")
 
-    let nboard = 0
-    let j = N - 1
-    while j >= 0 do
-        let left = (board >> (j + 1)) & 1
-        if j == N - 1 then 
-            left = 0 
-        end
-        let center = (board >> j) & 1
-        let right = (board >> (j - 1)) & 1
-        if j == 0 then 
-            right = 0 
-        end
-
-        let pat = (left << 2) | (center << 1) | right
-
-        if (110 >> pat) & 1 then
-            nboard = nboard | (1 << j)
-        end
-
-        j = j - 1
+    let pattern = *board
+    j = 0
+    while j < N - 1 do
+        pattern = ((pattern << 1) & 7) | *(board + (j + 1) * 8)
+        *(board + j * 8) = (110 >> pattern) & 1
+        j = j + 1
     end
 
-    board = nboard
     i = i + 1
 end

@@ -202,7 +202,8 @@ class Parser:
             self.labelsGotoed.add(self.curToken.text)
             ret = StatementNode('goto_statement', destination=self.curToken.text)
             self.match(TokenType.IDENT)
-        # "LET" ident "=" expression
+        # let_statement ::= 'let' ident '=' expression
+        #               |   'let' ident '[' expression ']' '=' list_expression
         elif self.checkToken(TokenType.let):
             self.nextToken()
 
@@ -212,6 +213,11 @@ class Parser:
 
             ret = StatementNode('let_statement', left=ExpressionNode('ident', text=self.curToken.text))
             self.match(TokenType.IDENT)
+            if self.checkToken(TokenType.LBRACKET):
+                self.nextToken()
+                ret.args = [self.expression()]
+                self.match(TokenType.RBRACKET)
+
             self.match(TokenType.EQ)
             ret.right = self.expression()
         # "IDENT"
