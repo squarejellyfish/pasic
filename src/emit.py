@@ -1,5 +1,7 @@
 # Emitter object keeps track of the generated code and outputs it.
+from src.parse import BinaryNode, ExpressionNode, StatementNode
 from src.lex import TokenType
+from typing import Union
 
 STACK_PADDING = 1024
 
@@ -57,165 +59,164 @@ class Emitter:
         with open(self.fullPath, 'w') as outputFile:
             outputFile.write(self.header + self.code + self.ender)
 
-    def emitStatement(self, statement: dict):
+    def emitStatement(self, statement: Union[StatementNode, ExpressionNode, BinaryNode]):
         assert TokenType.TOK_COUNT.value == 47, "Exhaustive handling of operation, notice that not all symbols need to be handled here, only those is a statement"
-        if 'print_statement' in statement:
-            # SYS_WRITE syscall
-            self.emitLine(f'\t; -- print_statement --')
-            expr_postfix = self.getExprValue(
-                statement['print_statement']['expression'])
-            if len(expr_postfix) == 1 and 'string' in expr_postfix[0]:
-                text = bytes(expr_postfix[0]['string']['text'].encode('utf-8')).decode('unicode_escape')
-                output = ', '.join([hex(ord(char)) for char in text])
-                self.headerLine(
-                    f'static_{self.staticVarCount}: db {output}')
+        if isinstance(statement, StatementNode):
+            if statement.typ == 'print_statement':
+                # SYS_WRITE syscall
+                self.emitLine(f'\t; -- print_statement --')
+                expr_postfix = self.getExprValue(
+                    statement.child)
+                if len(expr_postfix) == 1 and expr_postfix[0].typ == 'string':
+                    text = bytes(expr_postfix[0].text.encode('utf-8')).decode('unicode_escape')
+                    output = ', '.join([hex(ord(char)) for char in text])
+                    self.headerLine(
+                        f'static_{self.staticVarCount}: db {output}')
+                    self.emitLine(f'\tmov rax, 1')  # SYS_WRITE = 1
+                    self.emitLine(f'\tmov rdi, 1')  # stdout = 1
+                    rsi_arg = f'static_{self.staticVarCount}'
+                    self.emitLine(f'\tmov rsi, {rsi_arg}')  # mem location
+                    self.emitLine(f'\tmov rdx, {len(text)}')  # length
+                    self.emitLine(f'\tsyscall')
+                    self.staticVarCount += 1
+                else: # is a number, we call builtin function dump
+                    self.emitExpr(expr_postfix)
+                    # result will be at top of stack
+                    self.emitLine(f'\tpop rdi')
+                    self.emitLine(f'\tcall dump')
+            elif statement.typ == 'write_statement':
+                # SYS_WRITE but only write 1 char
+                self.emitLine(f'\t; -- write_statement --')
+                args = statement.args
+                left, right = self.getExprValue(args[0]), self.getExprValue(args[1])
+                self.emitExpr(right)
+                self.emitExpr(left)
+                if left[0].typ == 'ident':
+                    self.emitLine(f'\tpop rsi')
+                else:
+                    self.emitLine(f'\tmov rsi, rsp') # rsi takes address
+                    self.emitLine(f'\tadd rsp, 8')
+                self.emitLine(f'\tpop rdx') # pop arg length
                 self.emitLine(f'\tmov rax, 1')  # SYS_WRITE = 1
                 self.emitLine(f'\tmov rdi, 1')  # stdout = 1
-                rsi_arg = f'static_{self.staticVarCount}'
-                self.emitLine(f'\tmov rsi, {rsi_arg}')  # mem location
-                self.emitLine(f'\tmov rdx, {len(text)}')  # length
                 self.emitLine(f'\tsyscall')
-                self.staticVarCount += 1
-            else: # is a number, we call builtin function dump
-                self.emitExpr(expr_postfix)
+            elif statement.typ == 'let_statement':
+                self.emitLine(f'\t; -- let_statement --')
+                left, right_expr = statement.left, statement.right
+                right_expr = self.getExprValue(right_expr)
+                self.emitExpr(right_expr)
                 # result will be at top of stack
-                self.emitLine(f'\tpop rdi')
-                self.emitLine(f'\tcall dump')
-        elif 'write_statement' in statement:
-            # SYS_WRITE but only write 1 char
-            self.emitLine(f'\t; -- write_statement --')
-            args = statement['write_statement']['args']
-            assert len(args) == 2, f"Function write only takes 2 args, {len(args)} found."
-            left, right = self.getExprValue(args[0]), self.getExprValue(args[1])
-            self.emitExpr(right)
-            self.emitExpr(left)
-            if 'ident' in left[0]:
-                self.emitLine(f'\tpop rsi')
-            else:
-                self.emitLine(f'\tmov rsi, rsp') # rsi takes address
-                self.emitLine(f'\tadd rsp, 8')
-            self.emitLine(f'\tpop rdx') # pop arg length
-            self.emitLine(f'\tmov rax, 1')  # SYS_WRITE = 1
-            self.emitLine(f'\tmov rdi, 1')  # stdout = 1
-            self.emitLine(f'\tsyscall')
-        elif 'let_statement' in statement:
-            self.emitLine(f'\t; -- let_statement --')
-            left, right_expr = statement['let_statement']['left'], statement['let_statement']['right']
-            right_expr = self.getExprValue(right_expr['expression'])
-            self.emitExpr(right_expr)
-            # result will be at top of stack
-            self.emitLine(f'\tpop rax')
-            varName, size = left['ident']['text'], 8
-            self.allocVariable(varName, size)
-        elif 'assign_statement' in statement:
-            self.emitLine(f'\t; -- assign_statement')
-            left, right_expr = statement['assign_statement']['left'], statement['assign_statement']['right']
-            varName, right_expr = left['ident']['text'], self.getExprValue(
-                right_expr)
-            self.emitExpr(right_expr)
-            # result will be at top of stack
-            self.emitLine(f'\tpop rax')
-            if varName not in self.stackTable:
-                assert False, 'Variable cross-reference should be handle in parsing stage'
-            else:
-                self.allocStack(self.stackTable[varName], 0)
-        elif 'label_statement' in statement:
-            self.emitLine(f'\t; -- label_statement --')
-            text = statement['label_statement']['text']
-            self.emitLine(f'{text}:')
-        elif 'goto_statement' in statement:
-            self.emitLine(f'\t; -- goto_statement')
-            dest = statement['goto_statement']['destination']
-            self.emitLine(f'\tjmp {dest}')
-        elif 'if_statement' in statement:
-            self.emitLine(f'\t; -- if_statement')
-            condition, body = statement['if_statement']['condition'], statement['if_statement']['body']
-            condition = self.getExprValue(condition)
-            self.emitExpr(condition)
-            # result on top of stack
-            self.emitLine(f'\tpop rax')
-            self.emitLine(f'\ttest rax, rax')
-            self.emitLine(f'\tje IF_{self.labelTable['if']['count']}')
-            self.addrStackPush('if')
-            for stmt in body:
-                self.emitStatement(stmt)
-            self.emitLine(f'\tjmp END_{self.labelTable['if_end']['count']}')
-            self.addrStackPush('if_end')
-            alternative, end = statement['if_statement'].get(
-                'alternative', []), False
-            for stmt in alternative:
-                if 'else_statement' in stmt:
-                    end = True
-                self.emitStatement(stmt)
+                self.emitLine(f'\tpop rax')
+                varName, size = left.text, 8
+                self.allocVariable(varName, size)
+            elif statement.typ == 'assign_statement':
+                self.emitLine(f'\t; -- assign_statement')
+                left, right_expr = statement.left, statement.right
+                varName, right_expr = left.text, self.getExprValue(
+                    right_expr)
+                self.emitExpr(right_expr)
+                # result will be at top of stack
+                self.emitLine(f'\tpop rax')
+                if varName not in self.stackTable:
+                    assert False, 'Variable cross-reference should be handle in parsing stage'
+                else:
+                    self.allocStack(self.stackTable[varName], 0)
+            elif statement.typ == 'label_statement':
+                self.emitLine(f'\t; -- label_statement --')
+                text = statement['label_statement']['text']
+                self.emitLine(f'{text}:')
+            elif statement.typ == 'goto_statement':
+                self.emitLine(f'\t; -- goto_statement')
+                dest = statement['goto_statement']['destination']
+                self.emitLine(f'\tjmp {dest}')
+            elif statement.typ == 'if_statement':
+                self.emitLine(f'\t; -- if_statement')
+                condition, body = statement.condition, statement.body
+                condition = self.getExprValue(condition)
+                self.emitExpr(condition)
+                # result on top of stack
+                self.emitLine(f'\tpop rax')
+                self.emitLine(f'\ttest rax, rax')
+                self.emitLine(f'\tje IF_{self.labelTable['if']['count']}')
+                self.addrStackPush('if')
+                for stmt in body:
+                    self.emitStatement(stmt)
+                self.emitLine(f'\tjmp END_{self.labelTable['if_end']['count']}')
+                self.addrStackPush('if_end')
+                alternative, end = statement.alternative if statement.alternative else [], False
+                for stmt in alternative:
+                    if stmt.typ == 'else_statement':
+                        end = True
+                    self.emitStatement(stmt)
 
-            # 'else' will setup end jmp label for us, if no alternative, setup ourself
-            if not end:  # no else, but has elif
+                # 'else' will setup end jmp label for us, if no alternative, setup ourself
+                if not end:  # no else, but has elif
+                    addr = self.addrStackPop('if')
+                    self.emitLine(f'IF_{addr}:')
+                    addr = self.addrStackPop('if_end')
+                    self.emitLine(f'END_{addr}:')
+                # result will be at top of stack
+            elif statement.typ == 'elseif_statement':
+                self.emitLine(f'\t; -- elseif_statement')
                 addr = self.addrStackPop('if')
                 self.emitLine(f'IF_{addr}:')
+                condition, body = statement.condition, statement.body
+                condition = self.getExprValue(condition)
+                self.emitExpr(condition)
+                # result on top of stack
+                self.emitLine(f'\tpop rax')
+                self.emitLine(f'\ttest rax, rax')
+                self.emitLine(f'\tje IF_{self.labelTable['if']['count']}')
+                self.addrStackPush('if')
+                for stmt in body:
+                    self.emitStatement(stmt)
+                addr = self.addrStackPeek('if_end')
+                self.emitLine(f'\tjmp END_{addr}')
+            elif statement.typ == 'else_statement':
+                self.emitLine(f'\t; -- else_statement --')
+                addr = self.addrStackPop('if')
+                self.emitLine(f'IF_{addr}:')
+                body = statement.body
+                for stmt in body:
+                    self.emitStatement(stmt)
                 addr = self.addrStackPop('if_end')
                 self.emitLine(f'END_{addr}:')
-            # result will be at top of stack
-        elif 'elseif_statement' in statement:
-            self.emitLine(f'\t; -- elseif_statement')
-            addr = self.addrStackPop('if')
-            self.emitLine(f'IF_{addr}:')
-            condition, body = statement['elseif_statement']['condition'], statement['elseif_statement']['body']
-            condition = self.getExprValue(condition)
-            self.emitExpr(condition)
-            # result on top of stack
-            self.emitLine(f'\tpop rax')
-            self.emitLine(f'\ttest rax, rax')
-            self.emitLine(f'\tje IF_{self.labelTable['if']['count']}')
-            self.addrStackPush('if')
-            for stmt in body:
-                self.emitStatement(stmt)
-            addr = self.addrStackPeek('if_end')
-            self.emitLine(f'\tjmp END_{addr}')
-        elif 'else_statement' in statement:
-            self.emitLine(f'\t; -- else_statement --')
-            addr = self.addrStackPop('if')
-            self.emitLine(f'IF_{addr}:')
-            body = statement['else_statement']['body']
-            for stmt in body:
-                self.emitStatement(stmt)
-            addr = self.addrStackPop('if_end')
-            self.emitLine(f'END_{addr}:')
-        elif 'while_statement' in statement:
-            self.emitLine(f'\t; -- while_statement --')
-            self.emitLine(f'WHILE_{self.labelTable['while']['count']}:')
-            self.addrStackPush('while')
-            condition, body = statement['while_statement']['condition'], statement['while_statement']['body']
-            condition = self.getExprValue(condition)
-            self.emitExpr(condition)
-            # result on top of stack
-            self.emitLine(f'\tpop rax')
-            self.emitLine(f'\ttest rax, rax')
-            self.emitLine(f'\tje END_WHILE_{self.labelTable['while_end']['count']}')
-            self.addrStackPush('while_end')
-            for stmt in body:
-                self.emitStatement(stmt)
-            addr = self.addrStackPop('while')
-            self.emitLine(f'\tjmp WHILE_{addr}')
-            addr = self.addrStackPop('while_end')
-            self.emitLine(f'END_WHILE_{addr}:')
-        elif 'return_statement' in statement:
-            exprs = self.getExprValue(statement['return_statement'])
-            self.emitExpr(exprs)
-            # result will be at top of stack
-            self.emitLine(f'\tmov rax, 60')  # SYS_EXIT
-            self.emitLine(f'\tmov rdi, [rsp]')
-            self.emitLine(f'\tsyscall')
-        elif 'pointer_assignment' in statement:
-            left, right = statement['pointer_assignment']['left'], statement['pointer_assignment']['right']
-            left, right = self.getExprValue(left), self.getExprValue(right)
-            self.emitExpr(left[:-1])
-            # result (address) will be on the top of stack
-            self.emitExpr(right)
-            self.emitLine('\tpop rdx')
-            self.emitLine('\tpop rax') # contains the address
-            self.emitLine('\tmov QWORD [rax], rdx')
-            # print(left)
-            # raise NotImplementedError('Pointer assignment is not implemented yet')
+            elif statement.typ == 'while_statement':
+                self.emitLine(f'\t; -- while_statement --')
+                self.emitLine(f'WHILE_{self.labelTable['while']['count']}:')
+                self.addrStackPush('while')
+                condition, body = statement.condition, statement.body
+                condition = self.getExprValue(condition)
+                self.emitExpr(condition)
+                # result on top of stack
+                self.emitLine(f'\tpop rax')
+                self.emitLine(f'\ttest rax, rax')
+                self.emitLine(f'\tje END_WHILE_{self.labelTable['while_end']['count']}')
+                self.addrStackPush('while_end')
+                for stmt in body:
+                    self.emitStatement(stmt)
+                addr = self.addrStackPop('while')
+                self.emitLine(f'\tjmp WHILE_{addr}')
+                addr = self.addrStackPop('while_end')
+                self.emitLine(f'END_WHILE_{addr}:')
+            elif statement.typ == 'return_statement':
+                exprs = self.getExprValue(statement['return_statement'])
+                self.emitExpr(exprs)
+                # result will be at top of stack
+                self.emitLine(f'\tmov rax, 60')  # SYS_EXIT
+                self.emitLine(f'\tmov rdi, [rsp]')
+                self.emitLine(f'\tsyscall')
+            elif statement.typ == 'pointer_assignment':
+                left, right = statement.left, statement.right
+                left, right = self.getExprValue(left), self.getExprValue(right)
+                self.emitExpr(left[:-1])
+                # result (address) will be on the top of stack
+                self.emitExpr(right)
+                self.emitLine('\tpop rdx')
+                self.emitLine('\tpop rax') # contains the address
+                self.emitLine('\tmov QWORD [rax], rdx')
+                # print(left)
+                # raise NotImplementedError('Pointer assignment is not implemented yet')
         else:
             expr = self.getExprValue(statement)
             self.emitExpr(expr)
@@ -225,18 +226,18 @@ class Emitter:
         Expression result will be at top of stack
         '''
         for expr in exprs:
-            if 'number' in expr:
-                self.emitLine(f'\tpush {expr['number']['text']}')
-            elif 'ident' in expr:
+            if expr.typ == 'number':
+                self.emitLine(f'\tpush {expr.text}')
+            elif expr.typ == 'ident':
                 self.emitLine(
-                    f'\tmov rax, [rbp - {self.stackTable[expr['ident']['text']]}]')
+                    f'\tmov rax, [rbp - {self.stackTable[expr.text]}]')
                 self.emitLine(f'\tpush rax')
-            elif 'unary_operator' in expr:
+            elif expr.typ == 'unary_operator':
                 self.emitLine(f'\tpop rax')
                 self.emitLine(f'\tneg rax')
                 self.emitLine(f'\tpush rax')
-            elif 'operator' in expr:
-                operator = expr['operator']
+            elif expr.typ == 'operator':
+                operator = expr.text
                 if operator == '+':  # pop top of stack to rax, and add back to top of stack
                     self.emitLine(f'\tpop rax')
                     self.emitLine(f'\tadd [rsp], rax')
@@ -310,9 +311,9 @@ class Emitter:
                     self.emitLine(f'\tpush rcx')
                 else:
                     raise NotImplementedError(f'Operation {operator} is not implemented')
-            elif 'string' in expr:
+            elif expr.typ == 'string':
                 if len(exprs) == 1:
-                    text = bytes(expr['string']['text'].encode('utf-8')).decode('unicode_escape')
+                    text = bytes(expr.text.encode('utf-8')).decode('unicode_escape')
                     text += '\0'
                     output = ', '.join([hex(ord(char)) for char in text])
                     self.headerLine(
@@ -324,8 +325,8 @@ class Emitter:
                 else:
                     raise NotImplementedError(
                         'String operation is not implemented')
-            elif 'call_expression' in expr:
-                name, argc = expr['call_expression']['text'], expr['call_expression']['argc']
+            elif expr.typ == 'call_expression':
+                name, argc = expr.text, len(expr.args)
                 if name == 'syscall':
                     convention = ['rax', 'rdi', 'rsi', 'rdx', 'r10', 'r8', 'r9']
                     for i in reversed(range(argc)):
@@ -334,8 +335,8 @@ class Emitter:
                     self.emitLine('\tpush rax') # push result on to the stack
                 else:
                     raise NotImplementedError(f"Call expression {name} is not implemented")
-            elif 'list_expression' in expr:
-                exprs = expr['list_expression']['items']
+            elif expr.typ == 'list_expression':
+                exprs = expr.items
                 # print(exprs)
                 for expr in exprs:
                     self.emitExpr(expr)
@@ -349,7 +350,7 @@ class Emitter:
                         self.emitLine(f'\tpush rbx')
                     self.allocStack(self.stack, 8)
                 # raise NotImplementedError(f"list_expression, without de-reference or indexing it's useless")
-            elif 'pointer' in expr:
+            elif expr.typ == 'pointer':
                 self.emitLine('\tpop rax')
                 self.emitLine('\tpush QWORD [rax]')
             else:
@@ -381,51 +382,49 @@ class Emitter:
         self.stack += size
 
     @staticmethod
-    def getExprValue(expr: dict):
+    def getExprValue(expr: ExpressionNode | BinaryNode):
         ret = []
 
-        def get(expr: dict):
-            items = list(expr.keys())
-            if len(items) == 1:
-                if 'number' in expr or 'string' in expr or 'ident' in expr:
+        def get(expr: ExpressionNode):
+            if expr.typ in ['number', 'string', 'ident']:
+                ret.append(expr)
+                return
+            elif expr.typ == 'list_expression':
+                elements, list_ret = expr.items, ExpressionNode('list_expression', items=[])
+                for element in elements:
+                    # get(element)
+                    element = Emitter.getExprValue(element)
+                    list_ret.items.append(element)
+                ret.append(list_ret)
+                return
+            elif expr.typ == 'pointer':
+                get(expr.child)
+                ret.append(ExpressionNode('pointer'))
+                # print(ret)
+                return
+            elif expr.typ == 'unary_operator':  # unary operation
+                get(expr.arg)
+                if expr.text == '-':
+                    if ret[-1].typ == 'number':
+                        ret[-1].text = f'-{ret[-1]['number']['text']}'
+                    else:
+                        ret.append(ExpressionNode('unary_operator'))
+                        # ret.append({'unary_operator': expr['text']})
+            elif expr.typ == 'call_expression': # call expression
+                args = expr.args
+                text = expr.text
+                if text == 'syscall':
+                    assert len(args) > 0 and len(args) <= 7, f"Syscall statement expects 1 to 7 args, found {len(args)}"
+                    for arg in args: get(arg)
                     ret.append(expr)
-                    return
-                elif 'list_expression' in expr:
-                    elements, list_ret = expr['list_expression']['items'], {'list_expression': {'items': []}}
-                    for element in elements:
-                        # get(element)
-                        element = Emitter.getExprValue(element)
-                        list_ret['list_expression']['items'].append(element)
-                    ret.append(list_ret)
-                    return
-                elif 'pointer' in expr:
-                    get(expr['pointer'])
-                    ret.append({'pointer': 'damn'})
-                    # print(ret)
-                    return
-
-                get(expr[items[0]])
-            elif len(items) == 2:
-                if 'arg' in expr:  # unary operation
-                    get(expr['arg'])
-                    if expr['text'] == '-':
-                        if 'number' in ret[-1]:
-                            ret[-1]['number']['text'] = f'-{ret[-1]['number']['text']}'
-                        else:
-                            ret.append({'unary_operator': expr['text']})
-                elif 'args' in expr: # call expression
-                    args = expr['args']
-                    text = expr['text']
-                    if text == 'syscall':
-                        assert len(args) > 0 and len(args) <= 7, f"Syscall statement expects 1 to 7 args, found {len(args)}"
-                        for arg in args: get(arg)
-                        ret.append({'call_expression': {'text': text, 'argc': len(args)}})
-                else:
-                    raise NotImplementedError(f'{expr}')
-            elif len(items) == 3:
-                get(expr['left'])
-                get(expr['right'])
-                ret.append({'operator': expr['text']})
+            elif isinstance(expr, ExpressionNode):
+                get(expr.child)
+            elif isinstance(expr, BinaryNode):
+                get(expr.left)
+                get(expr.right)
+                ret.append(ExpressionNode('operator', text=expr.text))
+            else:
+                raise NotImplementedError(f'{expr}')
             return
         get(expr)
         return ret

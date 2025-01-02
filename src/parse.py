@@ -1,5 +1,7 @@
 import sys
+from typing import Optional, Union
 from src.lex import *
+from dataclasses import dataclass
 
 # Parser object keeps track of current token and checks if the code matches the grammar.
 # TODO: dynamic stack padding allocation
@@ -134,31 +136,22 @@ class Parser:
         assert TokenType.TOK_COUNT.value == 47, "Exhaustive handling of operation, notice that not all symbols need to be handled, only those who need a statement"
         # PRINT expression
         if self.checkToken(TokenType.print):
-            ret = {'print_statement': None}
             self.nextToken()
-
-            ret['print_statement'] = self.expression()
+            ret = StatementNode('print_statement', child=self.expression())
         # WRITE (addr: expression, length)
         elif self.checkToken(TokenType.write):
-            ret = {
-                'write_statement': {'args': []}
-            }
+            ret = StatementNode('write_statement', args=[])
             self.nextToken()
             self.match(TokenType.LPARENT)
-            ret['write_statement']['args'].append(self.expression())
+            ret.args.append(self.expression())
             self.match(TokenType.COMMA)
-            ret['write_statement']['args'].append(self.expression())
+            ret.args.append(self.expression())
             self.match(TokenType.RPARENT)
         # IF expression THEN {statement} END
         elif self.checkToken(TokenType.if_):
             self.nextToken()
-            ret = {
-                'if_statement': {
-                    'condition': self.expression(),
-                    'body': list(),
-                }
-            }
-            upper, last = ret['if_statement'], ret['if_statement']['body']
+            ret = StatementNode('if_statement', condition=self.expression(), body=list())
+            upper, last = ret, ret.body
 
             self.match(TokenType.then)
             self.nl()
@@ -169,27 +162,22 @@ class Parser:
                     self.nextToken()
                     self.nextToken()
 
-                    if 'alternative' not in upper:
-                        upper['alternative'] = list()
-                    d = {'elseif_statement': {
-                        'condition': self.comparison(),
-                        'body': list(),
-                    }}
-                    upper['alternative'].append(d)
-                    last = d['elseif_statement']['body']
+                    if upper.alternative == None:
+                        upper.alternative = list()
+                    d = StatementNode('elseif_statement', condition=self.comparison(), body=list())
+                    upper.alternative.append(d)
+                    last = d.body
 
                     self.match(TokenType.then)
                     self.nl()
 
                 # ELSE
                 elif self.checkToken(TokenType.else_):
-                    if 'alternative' not in upper:
-                        upper['alternative'] = list()
-                    d = {'else_statement': {
-                        'body': list(),
-                    }}
-                    upper['alternative'].append(d)
-                    last = d['else_statement']['body']
+                    if upper.alternative == None:
+                        upper.alternative = list()
+                    d = StatementNode('else_statement', body=list())
+                    upper.alternative.append(d)
+                    last = d.body
                     self.nextToken()
                     self.nl()
 
@@ -199,27 +187,20 @@ class Parser:
         # WHILE comparison DO nl {statement nl} end nl
         elif self.checkToken(TokenType.while_):
             self.nextToken()
-            ret = {
-                'while_statement': {
-                    'condition': self.comparison(),
-                    'body': list(),
-                }
-            }
+            ret = StatementNode('while_statement', condition=self.comparison(), body=list())
 
             self.match(TokenType.do)
             self.nl()
 
             while not self.checkToken(TokenType.end):
-                ret['while_statement']['body'].append(self.statement())
+                ret.body.append(self.statement())
 
             self.match(TokenType.end)
         # "GOTO" ident
         elif self.checkToken(TokenType.goto):
             self.nextToken()
             self.labelsGotoed.add(self.curToken.text)
-            ret = {
-                'goto_statement': {'destination': self.curToken.text}
-            }
+            ret = StatementNode('goto_statement', destination=self.curToken.text)
             self.match(TokenType.IDENT)
         # "LET" ident "=" expression
         elif self.checkToken(TokenType.let):
@@ -229,53 +210,42 @@ class Parser:
             if self.curToken.text not in self.symbols:
                 self.symbols.add(self.curToken.text)
 
-            ret = {'left': {
-                'ident': {'text': self.curToken.text}
-            }}
+            ret = StatementNode('let_statement', left=ExpressionNode('ident', text=self.curToken.text))
             self.match(TokenType.IDENT)
             self.match(TokenType.EQ)
-            ret['right'] = self.expression()
-            ret = {'let_statement': ret}
+            ret.right = self.expression()
         # "IDENT"
         elif self.checkToken(TokenType.IDENT):
             # "IDENT" = expression
             if self.peekToken.kind is TokenType.EQ:
-                ret = {'left': {
-                    'ident': {'text': self.curToken.text}
-                }}
+                ret = StatementNode('assign_statement', left=ExpressionNode('ident', text=self.curToken.text))
                 self.nextToken()
                 self.nextToken()
-                ret['right'] = self.expression()
-                ret = {'assign_statement': ret}
+                ret.right = self.expression()
             elif self.peekToken.kind is TokenType.COLON:
-
                 # Check if this label already exist
                 if self.curToken.text in self.labelsDeclared:
                     self.abort(f"Label already exists: {self.curToken.text}")
                 self.labelsDeclared.add(self.curToken.text)
 
-                ret = {
-                    'label_statement': {'text': self.curToken.text}
-                }
+                ret = StatementNode('label_statement', text=self.curToken.text)
                 self.nextToken()
                 self.match(TokenType.COLON)
             else:
                 ret = self.expression()
         # '*'(pointer) = expression
         elif self.checkToken(TokenType.ASTERISK):
-            ret = {'pointer_assignment': {
-                'left': self.pointer()
-            }}
+            ret = StatementNode('pointer_assignment', left=self.pointer())
             self.match(TokenType.EQ)
-            ret['pointer_assignment']['right'] = self.expression()
+            ret.right = self.expression()
         # "return" [expression]
         elif self.checkToken(TokenType.return_):
             if self.peekToken.kind is TokenType.NEWLINE:
                 self.nextToken()
-                ret = {'return_statement': {'value': {'number': {'text': '0'}}}}
+                ret = StatementNode('return_statement', value=ExpressionNode('number', text='0'))
             else:
                 self.nextToken()
-                ret = {'return_statement': {'value': self.expression()}}
+                ret = StatementNode('return_statement', value=self.expression())
         else:
             ret = self.expression()
             # self.abort(f"Invalid statement at {
@@ -287,36 +257,27 @@ class Parser:
     # expression ::= comparison
     def expression(self):
         # 0 or 1 parenthese
-        ret = {'expression': self.comparison()}
-        return ret
+        return ExpressionNode('expression', child=self.comparison())
 
     # comparison ::= bor_expr (("==" | "!=" | ">" | ">=" | "<" | "<=") bor_expr)*
     def comparison(self):
 
         ret = self.bor_expr()
         while self.isComparisonOp():
-            ret = {'comparison_op': {
-                'text': self.curToken.text,
-                'left': ret,
-            }}
+            ret = BinaryNode('comparison_op', self.curToken.text, left=ret, right=None)
             self.nextToken()
-            ret['comparison_op']['right'] = self.bor_expr()
+            ret.right = self.bor_expr()
 
-        return {'comparison': ret}
+        return ret
 
     # bor_expr  ::= xor_expr
     #           |  bor_expr "|" xor_expr
     def bor_expr(self):
         ret = self.xor_expr()
         while self.checkToken(TokenType.BOR):
-            ret = {
-                'bor_op': {
-                    'text': self.curToken.text,
-                    'left': ret,
-                }
-            }
+            ret = BinaryNode('bor_op', self.curToken.text, left=ret, right=None)
             self.nextToken()
-            ret['bor_op']['right'] = self.xor_expr()
+            ret.right = self.xor_expr()
         return ret
 
     # xor_expr ::= and_expr
@@ -324,42 +285,27 @@ class Parser:
     def xor_expr(self):
         ret = self.band_expr()
         while self.checkToken(TokenType.BXOR):
-            ret = {
-                'xor_op': {
-                    'text': self.curToken.text,
-                    'left': ret,
-                }
-            }
+            ret = BinaryNode('xor_op', self.curToken.text, left=ret, right=None)
             self.nextToken()
-            ret['xor_op']['right'] = self.band_expr()
+            ret.right = self.band_expr()
         return ret
 
     # band_expr ::= shift_expr ("&" shift_expr)*
     def band_expr(self):
         ret = self.shift_expr()
         while self.checkToken(TokenType.BAND):
-            ret = {
-                'band_op': {
-                    'text': self.curToken.text,
-                    'left': ret,
-                }
-            }
+            ret = BinaryNode('band_op', self.curToken.text, left=ret, right=None)
             self.nextToken()
-            ret['band_op']['right'] = self.shift_expr()
+            ret.right = self.shift_expr()
         return ret
 
     # shift_expr ::= sum (("<<" | ">>") sum)*
     def shift_expr(self):
         ret = self.sum()
         while self.isShiftOp():
-            ret = {
-                'shift_op': {
-                    'text': self.curToken.text,
-                    'left': ret,
-                }
-            }
+            ret = BinaryNode('shift_op', self.curToken.text, left=ret, right=None)
             self.nextToken()
-            ret['shift_op']['right'] = self.sum()
+            ret.right = self.sum()
         return ret
 
     # sum ::= term (op term)*
@@ -368,46 +314,32 @@ class Parser:
         ret = self.term()
         # And then 0 or more +/- and term
         while self.checkToken(TokenType.PLUS) or self.checkToken(TokenType.MINUS):
-            ret = {
-                'operator': {
-                    'text': self.curToken.text,
-                    'left': ret,
-                }
-            }
+            ret = BinaryNode('operator', self.curToken.text, left=ret, right=None)
             self.nextToken()
-            ret['operator']['right'] = self.term()
+            ret.right = self.term()
 
-        return {'sum': ret}
+        return ret
 
     # term ::= unary {( "/" | "*" | "%" ) unary}
     def term(self):
 
         ret = self.unary()
         while self.checkToken(TokenType.SLASH) or self.checkToken(TokenType.ASTERISK) or self.checkToken(TokenType.MOD):
-            ret = {
-                'operator': {
-                    'text': self.curToken.text,
-                    'left': ret,
-                }
-            }
+            ret = BinaryNode('operator', self.curToken.text, left=ret, right=None)
             self.nextToken()
-            ret['operator']['right'] = self.unary()
-        return {'term': ret}
+            ret.right = self.unary()
+        return ret
 
     # unary ::= ["+" | "-"] primary
     def unary(self):
 
         if self.checkToken(TokenType.PLUS) or self.checkToken(TokenType.MINUS):
-            ret = {
-                'unary_operator': {
-                    'text': self.curToken.text,
-                }
-            }
+            ret = ExpressionNode('unary_operator', text=self.curToken.text)
             self.nextToken()
-            ret['unary_operator']['arg'] = self.primary()
-            return {'unary': ret}
+            ret.child = self.primary()
+            return ret
         else:
-            return {'unary': self.primary()}
+            return self.primary()
 
     # primary: (from python grammar)
     #     | primary '.' NAME
@@ -422,9 +354,8 @@ class Parser:
         if self.checkToken(TokenType.syscall):
             self.nextToken()
             self.match(TokenType.LPARENT)
-            ret = {'call_expression': {
-                'text': TokenType.syscall.name, 'args': []}}
-            args_list = ret['call_expression']['args']
+            ret = ExpressionNode('call_expression', text=TokenType.syscall.name, args=[])
+            args_list = ret.args
             # need at least one arg (syscall number)
             args_list.append(self.expression())
             while not self.checkToken(TokenType.RPARENT):
@@ -443,7 +374,7 @@ class Parser:
     def pointer(self):
         if self.checkToken(TokenType.ASTERISK):
             self.nextToken()
-            ret = {'pointer': self.value()}
+            ret = ExpressionNode('pointer', child=self.value())
         else:
             ret = self.value()
         return ret
@@ -456,21 +387,15 @@ class Parser:
             ret = self.expression()
             self.match(TokenType.RPARENT)
         elif self.checkToken(TokenType.NUMBER):
-            ret = {'number': {
-                'text': self.curToken.text
-            }}
+            ret = ExpressionNode('number', text=self.curToken.text)
             self.nextToken()
         elif self.checkToken(TokenType.STRING):
-            ret = {'string': {
-                'text': self.curToken.text,
-            }}
+            ret = ExpressionNode('string', text=self.curToken.text)
             self.nextToken()
         elif self.checkToken(TokenType.IDENT):
             # Ensure var exists
             if self.curToken.text in self.symbols:
-                ret = {'ident': {
-                    'text': self.curToken.text
-                }}
+                ret = ExpressionNode('ident', text=self.curToken.text)
                 self.nextToken()
             else:
                 self.abort(f"Referencing variable before assignment: {
@@ -478,24 +403,23 @@ class Parser:
         else:
             ret = self.list_expression()
 
-        return {'value': ret}
+        return ret
 
     # list ::= '[' [expression (',' expression)*] ']'
     def list_expression(self):
         if self.checkToken(TokenType.LBRACKET):
-            ret = {'list_expression': {'items': []}}
+            ret = ExpressionNode('list_expression', items=[])
             self.nextToken()
             consumed = False
             while not self.checkToken(TokenType.RBRACKET):
                 if not consumed:
-                    ret['list_expression']['items'].append(self.expression())
+                    ret.items.append(self.expression())
                     consumed = True
                     continue
                 self.match(TokenType.COMMA)
-                ret['list_expression']['items'].append(self.expression())
+                ret.items.append(self.expression())
             self.match(TokenType.RBRACKET)
 
-            # print(ret['list_expression']['items'])
         else:
             self.abort(f"Unexpected token at {self.curToken.text}")
 
@@ -505,3 +429,36 @@ class Parser:
         # 0 or more newline
         while self.checkToken(TokenType.NEWLINE):
             self.nextToken()
+
+
+@dataclass
+class ExpressionNode:
+    typ: str
+    text: Optional[str] = None
+    items: Optional[list] = None
+    args: Optional[list] = None
+    child: Optional[Union['ExpressionNode', 'BinaryNode']] = None
+
+@dataclass
+class StatementNode:
+    typ: str
+    text: Optional[str] = None
+    args: Optional[list] = None
+    child: Optional[Union['ExpressionNode', 'BinaryNode']] = None
+    # for if, else, while statement
+    condition: Optional[ExpressionNode] = None
+    body: Optional[list] = None
+    alternative: Optional[list] = None
+    destination: Optional[str] = None
+    # let statement
+    left: Optional[ExpressionNode] = None
+    right: Optional[ExpressionNode] = None
+    # return statement
+    value: Optional[ExpressionNode] = None
+
+@dataclass
+class BinaryNode:
+    typ: str
+    text: str
+    left: ExpressionNode
+    right: ExpressionNode
