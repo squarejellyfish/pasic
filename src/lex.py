@@ -140,7 +140,7 @@ class Lexer:
             token = Token(text, TokenType.NUMBER, (self.sourceName, self.curLine, self.linePos))
         elif self.curChar.isalpha():
             startPos = self.curPos
-            while self.peek().isalpha():
+            while self.peek().isalpha() or self.peek().isdigit() or self.peek() in ['_', '-']:
                 self.nextChar()
 
             text = self.source[startPos:self.curPos + 1]

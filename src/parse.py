@@ -2,15 +2,14 @@ import sys
 from src.lex import *
 
 # Parser object keeps track of current token and checks if the code matches the grammar.
-# TODO: arbituary access to memory
 # TODO: dynamic stack padding allocation
-# TODO: array (allocate on mem or on stack?)
+# TODO: change assignment to be an expression
 
 class Parser:
     def __init__(self, tokens: list[Token]):
         self.tokens = tokens
-        self.ip = 0 # instruction pointer
- 
+        self.ip = 0  # instruction pointer
+
         self.symbols: set[str] = set()
         self.macros: dict[str, dict] = dict()
         self.labelsDeclared: set[str] = set()
@@ -33,13 +32,14 @@ class Parser:
     # Try to match current token. If not, error. Advances the current token.
     def match(self, kind):
         if not self.checkToken(kind):
-            self.abort(f"Expected {kind.name}, got {self.curToken.text}")
+            self.abort(f"Expected {kind.name}, got {repr(self.curToken.text)}")
         self.nextToken()
 
     # Advances the current token.
     def nextToken(self):
         self.curToken = self.peekToken
-        self.peekToken = self.tokens[self.ip] if self.ip != len(self.tokens) else None
+        self.peekToken = self.tokens[self.ip] if self.ip != len(
+            self.tokens) else None
         self.ip += 1
 
     def abort(self, message):
@@ -73,7 +73,8 @@ class Parser:
                 self.match(TokenType.NEWLINE)
                 self.macros[text] = {'body': body, 'expandCount': 0}
             else:
-                raise NotImplementedError(f"Preprocessing only supports define macros right now, found {self.curToken}")
+                raise NotImplementedError(
+                    f"Preprocessing only supports define macros right now, found {self.curToken}")
         keep.append(self.curToken)
 
         i = 0
@@ -82,7 +83,8 @@ class Parser:
             if curr.text in self.macros:
                 body: list = self.macros[curr.text]['body']
                 for j, token in enumerate(body):
-                    token = Token(token.text, token.kind, curr.pos) # new token instance with the pos updated
+                    # new token instance with the pos updated
+                    token = Token(token.text, token.kind, curr.pos)
                     body[j] = token
                 keep[i:i + 1] = body
                 self.macros[curr.text]['expandCount'] += 1
@@ -259,6 +261,13 @@ class Parser:
                 self.match(TokenType.COLON)
             else:
                 ret = self.expression()
+        # '*'(pointer) = expression
+        elif self.checkToken(TokenType.ASTERISK):
+            ret = {'pointer_assignment': {
+                'left': self.pointer()
+            }}
+            self.match(TokenType.EQ)
+            ret['pointer_assignment']['right'] = self.expression()
         # "return" [expression]
         elif self.checkToken(TokenType.return_):
             if self.peekToken.kind is TokenType.NEWLINE:
@@ -422,7 +431,8 @@ class Parser:
                 self.match(TokenType.COMMA)
                 args_list.append(self.expression())
             if len(args_list) < 1 or len(args_list) > 7:
-                self.abort(f"Syscall statement expects 1 to 7 args, found {len(args_list)}")
+                self.abort(f"Syscall statement expects 1 to 7 args, found {
+                           len(args_list)}")
             self.match(TokenType.RPARENT)
         else:
             ret = self.pointer()
@@ -490,7 +500,6 @@ class Parser:
             self.abort(f"Unexpected token at {self.curToken.text}")
 
         return ret
-
 
     def nl(self):
         # 0 or more newline

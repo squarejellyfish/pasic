@@ -3,6 +3,8 @@ from src.lex import TokenType
 
 STACK_PADDING = 1024
 
+# TODO: list re-assignment will reallocate new list, old list is memory leaked
+
 class Emitter:
     def __init__(self, fullPath):
         self.fullPath = fullPath
@@ -203,9 +205,19 @@ class Emitter:
             self.emitLine(f'\tmov rax, 60')  # SYS_EXIT
             self.emitLine(f'\tmov rdi, [rsp]')
             self.emitLine(f'\tsyscall')
+        elif 'pointer_assignment' in statement:
+            left, right = statement['pointer_assignment']['left'], statement['pointer_assignment']['right']
+            left, right = self.getExprValue(left), self.getExprValue(right)
+            self.emitExpr(left[:-1])
+            # result (address) will be on the top of stack
+            self.emitExpr(right)
+            self.emitLine('\tpop rdx')
+            self.emitLine('\tpop rax') # contains the address
+            self.emitLine('\tmov QWORD [rax], rdx')
+            # print(left)
+            # raise NotImplementedError('Pointer assignment is not implemented yet')
         else:
             expr = self.getExprValue(statement)
-            print(expr)
             self.emitExpr(expr)
 
     def emitExpr(self, exprs: list):
@@ -324,7 +336,7 @@ class Emitter:
                     raise NotImplementedError(f"Call expression {name} is not implemented")
             elif 'list_expression' in expr:
                 exprs = expr['list_expression']['items']
-                print(exprs)
+                # print(exprs)
                 for expr in exprs:
                     self.emitExpr(expr)
                 # there will be len(exprs) vars on stack after above
@@ -338,8 +350,8 @@ class Emitter:
                     self.allocStack(self.stack, 8)
                 # raise NotImplementedError(f"list_expression, without de-reference or indexing it's useless")
             elif 'pointer' in expr:
-                self.emitLine('pop rax')
-                self.emitLine('push QWORD [rax]')
+                self.emitLine('\tpop rax')
+                self.emitLine('\tpush QWORD [rax]')
             else:
                 raise NotImplementedError(f'Operation {expr} is not implemented')
 
@@ -389,7 +401,7 @@ class Emitter:
                 elif 'pointer' in expr:
                     get(expr['pointer'])
                     ret.append({'pointer': 'damn'})
-                    print(ret)
+                    # print(ret)
                     return
 
                 get(expr[items[0]])
