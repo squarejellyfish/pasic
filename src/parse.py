@@ -7,6 +7,8 @@ from dataclasses import dataclass
 # TODO: dynamic stack padding allocation
 # TODO: change assignment to be an expression
 
+EOF = Token('\0', Symbols.EOF)
+
 class Parser:
     def __init__(self, tokens: list[Token]):
         self.tokens = tokens
@@ -16,10 +18,10 @@ class Parser:
         self.macros: dict[str, dict] = dict()
         self.labelsDeclared: set[str] = set()
         self.labelsGotoed: set[str] = set()
-        self.ast = None
+        self.ast: dict = {}
 
-        self.curToken = None
-        self.peekToken = None
+        self.curToken: Token = EOF
+        self.peekToken: Token = EOF
         self.nextToken()
         self.nextToken()  # Call twice ot init curToken and peekToken
 
@@ -41,7 +43,7 @@ class Parser:
     def nextToken(self):
         self.curToken = self.peekToken
         self.peekToken = self.tokens[self.ip] if self.ip != len(
-            self.tokens) else None
+            self.tokens) else Token('\0', Symbols.EOF)
         self.ip += 1
 
     def abort(self, message):
@@ -50,29 +52,29 @@ class Parser:
         sys.exit(69)
 
     def isComparisonOp(self):
-        return self.checkToken(TokenType.GT) or self.checkToken(TokenType.GTEQ) or self.checkToken(TokenType.LT) or self.checkToken(TokenType.LTEQ) or self.checkToken(TokenType.EQEQ) or self.checkToken(TokenType.NOTEQ)
+        return self.checkToken(Symbols.GT) or self.checkToken(Symbols.GTEQ) or self.checkToken(Symbols.LT) or self.checkToken(Symbols.LTEQ) or self.checkToken(Symbols.EQEQ) or self.checkToken(Symbols.NOTEQ)
 
     def isShiftOp(self):
-        return self.checkToken(TokenType.GTGT) or self.checkToken(TokenType.LTLT)
+        return self.checkToken(Symbols.GTGT) or self.checkToken(Symbols.LTLT)
 
     def expandMacros(self):
         keep = []
-        while not self.checkToken(TokenType.EOF):
-            if not self.checkToken(TokenType.BANG):
+        while not self.checkToken(Symbols.EOF):
+            if not self.checkToken(Symbols.BANG):
                 keep.append(self.curToken)
                 self.nextToken()
                 continue
 
             self.nextToken()
-            if self.checkToken(TokenType.define):
+            if self.checkToken(Keywords.DEFINE):
                 self.nextToken()
                 text = self.curToken.text
-                self.match(TokenType.IDENT)
+                self.match(Symbols.IDENT)
                 body = list()
-                while not self.checkToken(TokenType.NEWLINE):
+                while not self.checkToken(Symbols.NEWLINE):
                     body.append(self.curToken)
                     self.nextToken()
-                self.match(TokenType.NEWLINE)
+                self.match(Symbols.NEWLINE)
                 self.macros[text] = {'body': body, 'expandCount': 0}
             else:
                 raise NotImplementedError(
@@ -83,7 +85,7 @@ class Parser:
         while i < len(keep):
             curr = keep[i]
             if curr.text in self.macros:
-                body: list = self.macros[curr.text]['body']
+                body = self.macros[curr.text]['body']
                 for j, token in enumerate(body):
                     # new token instance with the pos updated
                     token = Token(token.text, token.kind, curr.pos)
@@ -98,8 +100,8 @@ class Parser:
         self.tokens = keep
 
         self.ip = 0
-        self.curToken = None
-        self.peekToken = None
+        self.curToken = EOF
+        self.peekToken = EOF
         self.nextToken()
         self.nextToken()  # Call twice ot init curToken and peekToken
 
@@ -108,7 +110,7 @@ class Parser:
 
         self.expandMacros()
         # Strip newlines at start
-        while self.checkToken(TokenType.NEWLINE):
+        while self.checkToken(Symbols.NEWLINE):
             self.nextToken()
 
         # Parse all the statements
@@ -122,9 +124,9 @@ class Parser:
         return output
 
     # statements ::= statement*
-    def statements(self):
-        ret = {'statements': list()}
-        while not self.checkToken(TokenType.EOF):
+    def statements(self) -> dict:
+        ret: dict = {'statements': list()}
+        while not self.checkToken(Symbols.EOF):
             ret['statements'].append(self.statement())
         return ret
 
@@ -133,32 +135,32 @@ class Parser:
         # Check first token to see which statement
 
         ret = None
-        assert TokenType.TOK_COUNT.value == 47, "Exhaustive handling of operation, notice that not all symbols need to be handled, only those who need a statement"
+        assert len(Symbols) + len(Keywords) == 44, "Exhaustive handling of operation, notice that not all symbols need to be handled, only those who need a statement"
         # PRINT expression
-        if self.checkToken(TokenType.print):
+        if self.checkToken(Keywords.PRINT):
             self.nextToken()
             ret = StatementNode('print_statement', child=self.expression())
         # WRITE (addr: expression, length)
-        elif self.checkToken(TokenType.write):
+        elif self.checkToken(Keywords.WRITE):
             ret = StatementNode('write_statement', args=[])
             self.nextToken()
-            self.match(TokenType.LPARENT)
+            self.match(Symbols.LPARENT)
             ret.args.append(self.expression())
-            self.match(TokenType.COMMA)
+            self.match(Symbols.COMMA)
             ret.args.append(self.expression())
-            self.match(TokenType.RPARENT)
+            self.match(Symbols.RPARENT)
         # IF expression THEN {statement} END
-        elif self.checkToken(TokenType.if_):
+        elif self.checkToken(Keywords.IF):
             self.nextToken()
             ret = StatementNode('if_statement', condition=self.expression(), body=list())
             upper, last = ret, ret.body
 
-            self.match(TokenType.then)
+            self.match(Keywords.THEN)
             self.nl()
 
-            while not self.checkToken(TokenType.end):
+            while not self.checkToken(Keywords.END):
                 # ELSE IF comparison THEN {statement}
-                if self.checkToken(TokenType.else_) and self.peekToken.kind is TokenType.if_:
+                if self.checkToken(Keywords.ELSE) and self.peekToken.kind is Keywords.IF:
                     self.nextToken()
                     self.nextToken()
 
@@ -168,11 +170,11 @@ class Parser:
                     upper.alternative.append(d)
                     last = d.body
 
-                    self.match(TokenType.then)
+                    self.match(Keywords.THEN)
                     self.nl()
 
                 # ELSE
-                elif self.checkToken(TokenType.else_):
+                elif self.checkToken(Keywords.ELSE):
                     if upper.alternative == None:
                         upper.alternative = list()
                     d = StatementNode('else_statement', body=list())
@@ -183,28 +185,28 @@ class Parser:
 
                 last.append(self.statement())
 
-            self.match(TokenType.end)
+            self.match(Keywords.END)
         # WHILE comparison DO nl {statement nl} end nl
-        elif self.checkToken(TokenType.while_):
+        elif self.checkToken(Keywords.WHILE):
             self.nextToken()
             ret = StatementNode('while_statement', condition=self.comparison(), body=list())
 
-            self.match(TokenType.do)
+            self.match(Keywords.DO)
             self.nl()
 
-            while not self.checkToken(TokenType.end):
+            while not self.checkToken(Keywords.END):
                 ret.body.append(self.statement())
 
-            self.match(TokenType.end)
+            self.match(Keywords.END)
         # "GOTO" ident
-        elif self.checkToken(TokenType.goto):
+        elif self.checkToken(Keywords.GOTO):
             self.nextToken()
             self.labelsGotoed.add(self.curToken.text)
             ret = StatementNode('goto_statement', destination=self.curToken.text)
-            self.match(TokenType.IDENT)
+            self.match(Symbols.IDENT)
         # let_statement ::= 'let' ident '=' expression
         #               |   'let' ident '[' expression ']' '=' list_expression
-        elif self.checkToken(TokenType.let):
+        elif self.checkToken(Keywords.LET):
             self.nextToken()
 
             # Check if ident in symbols, if not we add it and emit it in headerLine
@@ -212,23 +214,23 @@ class Parser:
                 self.symbols.add(self.curToken.text)
 
             ret = StatementNode('let_statement', left=ExpressionNode('ident', text=self.curToken.text))
-            self.match(TokenType.IDENT)
-            if self.checkToken(TokenType.LBRACKET):
+            self.match(Symbols.IDENT)
+            if self.checkToken(Symbols.LBRACKET):
                 self.nextToken()
                 ret.args = [self.expression()]
-                self.match(TokenType.RBRACKET)
+                self.match(Symbols.RBRACKET)
 
-            self.match(TokenType.EQ)
+            self.match(Symbols.EQ)
             ret.right = self.expression()
         # "IDENT"
-        elif self.checkToken(TokenType.IDENT):
+        elif self.checkToken(Symbols.IDENT):
             # "IDENT" = expression
-            if self.peekToken.kind is TokenType.EQ:
+            if self.peekToken.kind is Symbols.EQ:
                 ret = StatementNode('assign_statement', left=ExpressionNode('ident', text=self.curToken.text))
                 self.nextToken()
                 self.nextToken()
                 ret.right = self.expression()
-            elif self.peekToken.kind is TokenType.COLON:
+            elif self.peekToken.kind is Symbols.COLON:
                 # Check if this label already exist
                 if self.curToken.text in self.labelsDeclared:
                     self.abort(f"Label already exists: {self.curToken.text}")
@@ -236,17 +238,17 @@ class Parser:
 
                 ret = StatementNode('label_statement', text=self.curToken.text)
                 self.nextToken()
-                self.match(TokenType.COLON)
+                self.match(Symbols.COLON)
             else:
                 ret = self.expression()
         # '*'(pointer) = expression
-        elif self.checkToken(TokenType.ASTERISK):
+        elif self.checkToken(Symbols.ASTERISK):
             ret = StatementNode('pointer_assignment', left=self.pointer())
-            self.match(TokenType.EQ)
+            self.match(Symbols.EQ)
             ret.right = self.expression()
         # "return" [expression]
-        elif self.checkToken(TokenType.return_):
-            if self.peekToken.kind is TokenType.NEWLINE:
+        elif self.checkToken(Keywords.RETURN):
+            if self.peekToken.kind is Symbols.NEWLINE:
                 self.nextToken()
                 ret = StatementNode('return_statement', value=ExpressionNode('number', text='0'))
             else:
@@ -280,7 +282,7 @@ class Parser:
     #           |  bor_expr "|" xor_expr
     def bor_expr(self):
         ret = self.xor_expr()
-        while self.checkToken(TokenType.BOR):
+        while self.checkToken(Symbols.BOR):
             ret = BinaryNode('bor_op', self.curToken.text, left=ret, right=None)
             self.nextToken()
             ret.right = self.xor_expr()
@@ -290,7 +292,7 @@ class Parser:
     #           |  xor_expr "^" and_expr
     def xor_expr(self):
         ret = self.band_expr()
-        while self.checkToken(TokenType.BXOR):
+        while self.checkToken(Symbols.BXOR):
             ret = BinaryNode('xor_op', self.curToken.text, left=ret, right=None)
             self.nextToken()
             ret.right = self.band_expr()
@@ -299,7 +301,7 @@ class Parser:
     # band_expr ::= shift_expr ("&" shift_expr)*
     def band_expr(self):
         ret = self.shift_expr()
-        while self.checkToken(TokenType.BAND):
+        while self.checkToken(Symbols.BAND):
             ret = BinaryNode('band_op', self.curToken.text, left=ret, right=None)
             self.nextToken()
             ret.right = self.shift_expr()
@@ -319,7 +321,7 @@ class Parser:
 
         ret = self.term()
         # And then 0 or more +/- and term
-        while self.checkToken(TokenType.PLUS) or self.checkToken(TokenType.MINUS):
+        while self.checkToken(Symbols.PLUS) or self.checkToken(Symbols.MINUS):
             ret = BinaryNode('operator', self.curToken.text, left=ret, right=None)
             self.nextToken()
             ret.right = self.term()
@@ -330,7 +332,7 @@ class Parser:
     def term(self):
 
         ret = self.unary()
-        while self.checkToken(TokenType.SLASH) or self.checkToken(TokenType.ASTERISK) or self.checkToken(TokenType.MOD):
+        while self.checkToken(Symbols.SLASH) or self.checkToken(Symbols.ASTERISK) or self.checkToken(Symbols.MOD):
             ret = BinaryNode('operator', self.curToken.text, left=ret, right=None)
             self.nextToken()
             ret.right = self.unary()
@@ -339,7 +341,7 @@ class Parser:
     # unary ::= ["+" | "-"] primary
     def unary(self):
 
-        if self.checkToken(TokenType.PLUS) or self.checkToken(TokenType.MINUS):
+        if self.checkToken(Symbols.PLUS) or self.checkToken(Symbols.MINUS):
             ret = ExpressionNode('unary_operator', text=self.curToken.text)
             self.nextToken()
             ret.child = self.primary()
@@ -357,20 +359,20 @@ class Parser:
     # primary ::= ('syscall' | 'write' | 'print') ['(' [expression (',' expression)*] ')']
     #           | value
     def primary(self):
-        if self.checkToken(TokenType.syscall):
+        if self.checkToken(Keywords.SYSCALL):
             self.nextToken()
-            self.match(TokenType.LPARENT)
-            ret = ExpressionNode('call_expression', text=TokenType.syscall.name, args=[])
+            self.match(Symbols.LPARENT)
+            ret = ExpressionNode('call_expression', text=Keywords.SYSCALL.name.lower(), args=[])
             args_list = ret.args
             # need at least one arg (syscall number)
             args_list.append(self.expression())
-            while not self.checkToken(TokenType.RPARENT):
-                self.match(TokenType.COMMA)
+            while not self.checkToken(Symbols.RPARENT):
+                self.match(Symbols.COMMA)
                 args_list.append(self.expression())
             if len(args_list) < 1 or len(args_list) > 7:
                 self.abort(f"Syscall statement expects 1 to 7 args, found {
                            len(args_list)}")
-            self.match(TokenType.RPARENT)
+            self.match(Symbols.RPARENT)
         else:
             ret = self.pointer()
         return ret
@@ -378,7 +380,7 @@ class Parser:
     # pointer ::= '*' value
     #           | value
     def pointer(self):
-        if self.checkToken(TokenType.ASTERISK):
+        if self.checkToken(Symbols.ASTERISK):
             self.nextToken()
             ret = ExpressionNode('pointer', child=self.value())
         else:
@@ -388,17 +390,17 @@ class Parser:
     # value ::= '(' expression ')' | number | string | ident | list
     def value(self):
 
-        if self.checkToken(TokenType.LPARENT):
+        if self.checkToken(Symbols.LPARENT):
             self.nextToken()
             ret = self.expression()
-            self.match(TokenType.RPARENT)
-        elif self.checkToken(TokenType.NUMBER):
+            self.match(Symbols.RPARENT)
+        elif self.checkToken(Symbols.NUMBER):
             ret = ExpressionNode('number', text=self.curToken.text)
             self.nextToken()
-        elif self.checkToken(TokenType.STRING):
+        elif self.checkToken(Symbols.STRING):
             ret = ExpressionNode('string', text=self.curToken.text)
             self.nextToken()
-        elif self.checkToken(TokenType.IDENT):
+        elif self.checkToken(Symbols.IDENT):
             # Ensure var exists
             if self.curToken.text in self.symbols:
                 ret = ExpressionNode('ident', text=self.curToken.text)
@@ -413,18 +415,18 @@ class Parser:
 
     # list ::= '[' [expression (',' expression)*] ']'
     def list_expression(self):
-        if self.checkToken(TokenType.LBRACKET):
+        if self.checkToken(Symbols.LBRACKET):
             ret = ExpressionNode('list_expression', items=[])
             self.nextToken()
             consumed = False
-            while not self.checkToken(TokenType.RBRACKET):
+            while not self.checkToken(Symbols.RBRACKET):
                 if not consumed:
                     ret.items.append(self.expression())
                     consumed = True
                     continue
-                self.match(TokenType.COMMA)
+                self.match(Symbols.COMMA)
                 ret.items.append(self.expression())
-            self.match(TokenType.RBRACKET)
+            self.match(Symbols.RBRACKET)
 
         else:
             self.abort(f"Unexpected token at {self.curToken.text}")
@@ -433,7 +435,7 @@ class Parser:
 
     def nl(self):
         # 0 or more newline
-        while self.checkToken(TokenType.NEWLINE):
+        while self.checkToken(Symbols.NEWLINE):
             self.nextToken()
 
 

@@ -1,11 +1,11 @@
 # Emitter object keeps track of the generated code and outputs it.
 from src.parse import BinaryNode, ExpressionNode, StatementNode
-from src.lex import TokenType
+from src.lex import Symbols, Keywords
 from typing import Union
 
 STACK_PADDING = 1024
 
-# TODO: list re-assignment will reallocate new list, old list is memory leaked
+# TODO: list re-assignment will reallocate new list, old list is memory leaked (this is actually fine?)
 
 class Emitter:
     def __init__(self, fullPath):
@@ -60,7 +60,7 @@ class Emitter:
             outputFile.write(self.header + self.code + self.ender)
 
     def emitStatement(self, statement: Union[StatementNode, ExpressionNode, BinaryNode]):
-        assert TokenType.TOK_COUNT.value == 47, "Exhaustive handling of operation, notice that not all symbols need to be handled here, only those is a statement"
+        assert len(Symbols) + len(Keywords) == 44, "Exhaustive handling of operation, notice that not all symbols need to be handled here, only those is a statement"
         if isinstance(statement, StatementNode):
             if statement.typ == 'print_statement':
                 # SYS_WRITE syscall

@@ -1,16 +1,17 @@
-from enum import auto
-import enum
+from enum import Enum, auto
 import sys
 
 # TODO: support for macros, kind of like the c style macros: #define (macros) (something)
-# TODO: use table for lexing?
+
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
+
 class Lexer:
     def __init__(self, source, sourceName):
-        self.source: str = source + '\n' # Source code to lex as a string. Append a newline to simplify lexing/parsing the last token/statement.
+        # Source code to lex as a string. Append a newline to simplify lexing/parsing the last token/statement.
+        self.source: str = source + '\n'
         self.curChar: str = ''   # Current character in the string.
         self.curPos: int = -1    # Current position in the string.
         self.curLine: int = 1
@@ -39,14 +40,15 @@ class Lexer:
 
     # Invalid token found, print error message and exit.
     def abort(self, message):
-        eprint(f"{self.sourceName}:{self.curLine}:{self.linePos} Lexing error. " + message)
+        eprint(f"{self.sourceName}:{self.curLine}:{
+               self.linePos} Lexing error. " + message)
         sys.exit(69)
-		
+
     # Skip whitespace except newlines, which we will use to indicate the end of a statement.
     def skipWhitespace(self):
         while self.curChar == ' ' or self.curChar == '\t' or self.curChar == '\r':
             self.nextChar()
-		
+
     # Skip comments in the code.
     def skipComment(self):
         if self.curChar == "'":
@@ -61,52 +63,65 @@ class Lexer:
 
         # Check the first character of this token to see if we can decide what it is.
         # If it is a multiple character operator (e.g., !=), number, identifier, or keyword then we will process the rest.
-        assert TokenType.TOK_COUNT.value == 47, "Exhaustive handling of tokens, notice that not all tokens need to be handle here, only those that need to be lexed"
+        assert len(Symbols) == 29, "Exhaustive handling of symbols"
         if self.curChar == '+':
-            token = Token(self.curChar, TokenType.PLUS, (self.sourceName, self.curLine, self.linePos))
+            token = Token(self.curChar, Symbols.PLUS,
+                          (self.sourceName, self.curLine, self.linePos))
         elif self.curChar == '-':
-            token = Token(self.curChar, TokenType.MINUS, (self.sourceName, self.curLine, self.linePos))
+            token = Token(self.curChar, Symbols.MINUS,
+                          (self.sourceName, self.curLine, self.linePos))
         elif self.curChar == '*':
-            token = Token(self.curChar, TokenType.ASTERISK, (self.sourceName, self.curLine, self.linePos))
+            token = Token(self.curChar, Symbols.ASTERISK,
+                          (self.sourceName, self.curLine, self.linePos))
         elif self.curChar == '/':
-            token = Token(self.curChar, TokenType.SLASH, (self.sourceName, self.curLine, self.linePos))
+            token = Token(self.curChar, Symbols.SLASH,
+                          (self.sourceName, self.curLine, self.linePos))
         elif self.curChar == '=':
             # Check if this token is '=' or '==' by peeking the next char
             if self.peek() == '=':
                 lastChar = self.curChar
                 self.nextChar()
-                token = Token(lastChar + self.curChar, TokenType.EQEQ, (self.sourceName, self.curLine, self.linePos))
+                token = Token(lastChar + self.curChar, Symbols.EQEQ,
+                              (self.sourceName, self.curLine, self.linePos))
             else:
-                token = Token(self.curChar, TokenType.EQ, (self.sourceName, self.curLine, self.linePos))
+                token = Token(self.curChar, Symbols.EQ,
+                              (self.sourceName, self.curLine, self.linePos))
         elif self.curChar == '>':
             # Check whether this is token is > or >= or >>
             if self.peek() == '=':
                 lastChar = self.curChar
                 self.nextChar()
-                token = Token(lastChar + self.curChar, TokenType.GTEQ, (self.sourceName, self.curLine, self.linePos))
+                token = Token(lastChar + self.curChar, Symbols.GTEQ,
+                              (self.sourceName, self.curLine, self.linePos))
             elif self.peek() == '>':
                 lastChar = self.curChar
                 self.nextChar()
-                token = Token(lastChar + self.curChar, TokenType.GTGT, (self.sourceName, self.curLine, self.linePos))
+                token = Token(lastChar + self.curChar, Symbols.GTGT,
+                              (self.sourceName, self.curLine, self.linePos))
             else:
-                token = Token(self.curChar, TokenType.GT, (self.sourceName, self.curLine, self.linePos))
+                token = Token(self.curChar, Symbols.GT,
+                              (self.sourceName, self.curLine, self.linePos))
         elif self.curChar == '<':
             # Check whether this is token is < or <= or <<
             if self.peek() == '=':
                 lastChar = self.curChar
                 self.nextChar()
-                token = Token(lastChar + self.curChar, TokenType.LTEQ, (self.sourceName, self.curLine, self.linePos))
+                token = Token(lastChar + self.curChar, Symbols.LTEQ,
+                              (self.sourceName, self.curLine, self.linePos))
             elif self.peek() == '<':
                 lastChar = self.curChar
                 self.nextChar()
-                token = Token(lastChar + self.curChar, TokenType.LTLT, (self.sourceName, self.curLine, self.linePos))
+                token = Token(lastChar + self.curChar, Symbols.LTLT,
+                              (self.sourceName, self.curLine, self.linePos))
             else:
-                token = Token(self.curChar, TokenType.LT, (self.sourceName, self.curLine, self.linePos))
-        elif self.curChar == '!': 
+                token = Token(self.curChar, Symbols.LT,
+                              (self.sourceName, self.curLine, self.linePos))
+        elif self.curChar == '!':
             if self.peek() == '=':
                 lastChar = self.curChar
                 self.nextChar()
-                token = Token(lastChar + self.curChar, TokenType.NOTEQ, (self.sourceName, self.curLine, self.linePos))
+                token = Token(lastChar + self.curChar, Symbols.NOTEQ,
+                              (self.sourceName, self.curLine, self.linePos))
             else:
                 self.abort("Expected !=, got !" + self.peek())
         elif self.curChar == '"':
@@ -117,18 +132,21 @@ class Lexer:
                 self.nextChar()
 
             text = self.source[startPos:self.curPos]
-            token = Token(text, TokenType.STRING, (self.sourceName, self.curLine, self.linePos))
+            token = Token(text, Symbols.STRING,
+                          (self.sourceName, self.curLine, self.linePos))
         elif self.curChar == '(':
-            token = Token(self.curChar, TokenType.LPARENT, (self.sourceName, self.curLine, self.linePos) )
+            token = Token(self.curChar, Symbols.LPARENT,
+                          (self.sourceName, self.curLine, self.linePos))
         elif self.curChar == ')':
-            token = Token(self.curChar, TokenType.RPARENT, (self.sourceName, self.curLine, self.linePos) )
+            token = Token(self.curChar, Symbols.RPARENT,
+                          (self.sourceName, self.curLine, self.linePos))
         elif self.curChar.isdigit():
             # Assume this is a number, if not we abort
             # Get all consecutive digits and decimal
             startPos = self.curPos
             while self.peek().isdigit():
                 self.nextChar()
-            if self.peek() == '.': # decimal
+            if self.peek() == '.':  # decimal
                 self.nextChar()
 
                 if not self.peek().isdigit():
@@ -137,7 +155,8 @@ class Lexer:
                     self.nextChar()
 
             text = self.source[startPos:self.curPos + 1]
-            token = Token(text, TokenType.NUMBER, (self.sourceName, self.curLine, self.linePos))
+            token = Token(text, Symbols.NUMBER,
+                          (self.sourceName, self.curLine, self.linePos))
         elif self.curChar.isalpha():
             startPos = self.curPos
             while self.peek().isalpha() or self.peek().isdigit() or self.peek() in ['_', '-']:
@@ -146,35 +165,48 @@ class Lexer:
             text = self.source[startPos:self.curPos + 1]
             iskeyword, kind = Token.isKeyword(text)
             if iskeyword:
-                token = Token(text, kind, (self.sourceName, self.curLine, self.linePos))
+                token = Token(text, kind, (self.sourceName,
+                              self.curLine, self.linePos))
             else:
-                token = Token(text, TokenType.IDENT, (self.sourceName, self.curLine, self.linePos))
+                token = Token(text, Symbols.IDENT,
+                              (self.sourceName, self.curLine, self.linePos))
         elif self.curChar == '\n':
-            token = Token(self.curChar, TokenType.NEWLINE, (self.sourceName, self.curLine, self.linePos))
+            token = Token(self.curChar, Symbols.NEWLINE,
+                          (self.sourceName, self.curLine, self.linePos))
         elif self.curChar == '\0':
-            token = Token(self.curChar, TokenType.EOF, (self.sourceName, self.curLine, self.linePos))
+            token = Token(self.curChar, Symbols.EOF,
+                          (self.sourceName, self.curLine, self.linePos))
         elif self.curChar == ':':
-            token = Token(self.curChar, TokenType.COLON, (self.sourceName, self.curLine, self.linePos))
+            token = Token(self.curChar, Symbols.COLON,
+                          (self.sourceName, self.curLine, self.linePos))
         elif self.curChar == '%':
-            token = Token(self.curChar, TokenType.MOD, (self.sourceName, self.curLine, self.linePos))
+            token = Token(self.curChar, Symbols.MOD,
+                          (self.sourceName, self.curLine, self.linePos))
         elif self.curChar == ',':
-            token = Token(self.curChar, TokenType.COMMA, (self.sourceName, self.curLine, self.linePos))
+            token = Token(self.curChar, Symbols.COMMA,
+                          (self.sourceName, self.curLine, self.linePos))
         elif self.curChar == '&':
-            token = Token(self.curChar, TokenType.BAND, (self.sourceName, self.curLine, self.linePos))
+            token = Token(self.curChar, Symbols.BAND,
+                          (self.sourceName, self.curLine, self.linePos))
         elif self.curChar == '|':
-            token = Token(self.curChar, TokenType.BOR, (self.sourceName, self.curLine, self.linePos))
+            token = Token(self.curChar, Symbols.BOR,
+                          (self.sourceName, self.curLine, self.linePos))
         elif self.curChar == '^':
-            token = Token(self.curChar, TokenType.BXOR, (self.sourceName, self.curLine, self.linePos))
+            token = Token(self.curChar, Symbols.BXOR,
+                          (self.sourceName, self.curLine, self.linePos))
         elif self.curChar == '#':
-            token = Token(self.curChar, TokenType.BANG, (self.sourceName, self.curLine, self.linePos))
+            token = Token(self.curChar, Symbols.BANG,
+                          (self.sourceName, self.curLine, self.linePos))
         elif self.curChar == '[':
-            token = Token(self.curChar, TokenType.LBRACKET, (self.sourceName, self.curLine, self.linePos))
+            token = Token(self.curChar, Symbols.LBRACKET,
+                          (self.sourceName, self.curLine, self.linePos))
         elif self.curChar == ']':
-            token = Token(self.curChar, TokenType.RBRACKET, (self.sourceName, self.curLine, self.linePos))
+            token = Token(self.curChar, Symbols.RBRACKET,
+                          (self.sourceName, self.curLine, self.linePos))
         else:
             # Unknown token!
             self.abort("Unknown token: " + self.curChar)
-			
+
         self.nextChar()
         return token
 
@@ -183,46 +215,13 @@ class Lexer:
         while True:
             token = self.getToken()
             tokens.append(token)
-            if token.kind == TokenType.EOF:
+            if token.kind == Symbols.EOF:
                 break
         return tokens
 
-class Token:
-    def __init__(self, tokenText, tokenKind, pos=('', 0, 0)):
-        self.text = tokenText   # The token's actual text. Used for identifiers, strings, and numbers.
-        self.kind = tokenKind   # The TokenType that this token is classified as.
-        self.pos = pos
-
-    @staticmethod
-    def isKeyword(text):
-        assert TokenType.KEYWORDS_COUNT.value == 16, "Exhaustive handling in isKeyword(), forgot to add support for a keyword?"
-        for kind in TokenType:
-            if kind.value >= 100 and kind.value < 200:
-                # special case (reserved words)
-                if kind is TokenType.if_ and text == str(kind.name)[:-1]:
-                    return (True, kind)
-                elif kind is TokenType.while_ and text == str(kind.name)[:-1]:
-                    return (True, kind)
-                # elif kind is TokenType.and_ and text == str(kind.name)[:-1]:
-                #     return (True, kind)
-                # elif kind is TokenType.or_ and text == str(kind.name)[:-1]:
-                #     return (True, kind)
-                elif kind is TokenType.not_ and text == str(kind.name)[:-1]:
-                    return (True, kind)
-                elif kind is TokenType.else_ and text == str(kind.name)[:-1]:
-                    return (True, kind)
-                elif kind is TokenType.return_ and text == str(kind.name)[:-1]:
-                    return (True, kind)
-                # other case
-                elif kind.name == text:
-                    return (True, kind)
-        return (False, None)
-
-    def __str__(self) -> str:
-        return f'({self.kind}, {repr(self.text)}, {self.pos})'
 
 # TokenType is our enum for all the types of tokens.
-class TokenType(enum.Enum):
+class Symbols(Enum):
     EOF = auto()
     NEWLINE = auto()
     NUMBER = auto()
@@ -235,26 +234,7 @@ class TokenType(enum.Enum):
     COLON = auto()
     COMMA = auto()
     BANG = auto()
-    SYMS_COUNT = auto()
-    # Keywords.
-    label = 101
-    goto = auto()
-    print = auto()
-    let = auto()
-    if_ = auto()
-    then = auto()
-    end = auto()
-    while_ = auto()
-    do = auto()
-    not_ = auto()
-    else_ = auto()
-    return_ = auto()
-    write = auto()
-    define = auto()
-    syscall = auto()
-    KEYWORDS_COUNT = syscall - label + 2
-    # Operators.
-    EQ = 201
+    EQ = auto()
     PLUS = auto()
     MINUS = auto()
     ASTERISK = auto()
@@ -266,10 +246,63 @@ class TokenType(enum.Enum):
     GT = auto()
     GTEQ = auto()
     MOD = auto()
-    LTLT = auto() # left shift
-    GTGT = auto() # right shift
-    BAND = auto() # bitwise and
-    BOR = auto() # bitwise or
-    BXOR = auto() # bitwise xor
-    OPS_COUNT = BXOR - EQ + 2
-    TOK_COUNT = SYMS_COUNT + KEYWORDS_COUNT + OPS_COUNT
+    LTLT = auto()  # left shift
+    GTGT = auto()  # right shift
+    BAND = auto()  # bitwise and
+    BOR = auto()  # bitwise or
+    BXOR = auto()  # bitwise xor
+
+class Keywords(Enum):
+    LABEL = auto()
+    GOTO = auto()
+    PRINT = auto()
+    LET = auto()
+    IF = auto()
+    THEN = auto()
+    END = auto()
+    WHILE = auto()
+    DO = auto()
+    NOT = auto()
+    ELSE = auto()
+    RETURN = auto()
+    WRITE = auto()
+    DEFINE = auto()
+    SYSCALL = auto()
+
+
+assert len(Keywords) == 15, "Exhaustive handling in isKeyword(), forgot to add support for a keyword?"
+KEYWORDS_TABLE = {
+    'if': Keywords.IF,
+    'label': Keywords.LABEL,
+    'goto': Keywords.GOTO,
+    'print': Keywords.PRINT,
+    'let': Keywords.LET,
+    'then': Keywords.THEN,
+    'end': Keywords.END,
+    'while': Keywords.WHILE,
+    'do': Keywords.DO,
+    'not': Keywords.NOT,
+    'else': Keywords.ELSE,
+    'return': Keywords.RETURN,
+    'write': Keywords.WRITE,
+    'define': Keywords.DEFINE,
+    'syscall': Keywords.SYSCALL,
+}
+
+class Token:
+    def __init__(self, tokenText, tokenKind, pos=('', 0, 0)):
+        # The token's actual text. Used for identifiers, strings, and numbers.
+        self.text = tokenText
+        # The TokenType that this token is classified as.
+        self.kind = tokenKind
+        self.pos = pos
+
+    @staticmethod
+    def isKeyword(text):
+        if text not in KEYWORDS_TABLE:
+            return (False, None)
+        
+        return (True, KEYWORDS_TABLE[text])
+
+    def __str__(self) -> str:
+        return f'({self.kind}, {repr(self.text)}, {self.pos})'
