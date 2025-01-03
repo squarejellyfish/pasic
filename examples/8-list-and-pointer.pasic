@@ -2,7 +2,16 @@ let l = [69, 2, 3]
 
 let x = (*(l + 8) = 123) // assignment is an expression
 
-print(*l)
-print(*(l + 8))
-print(*(l + 16))
+print(*l) // 69
+print(*(l + 8)) // 123
+print(*(l + 16)) // 3
 print(x) // 123
+
+let nums = [1, 420, 3]
+
+print(nums[0]) // 1
+nums[0] = 69
+
+print(nums[1]) // 420
+print(nums[0]) // 69
+print(*nums)   // 69

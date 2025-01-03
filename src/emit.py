@@ -7,6 +7,7 @@ from math import log2, ceil
 Node = BinaryNode | ExpressionNode | StatementNode
 
 # TODO: list re-assignment will reallocate new list, old list is memory leaked (this is actually fine?)
+# TODO: list init with [] will cause weird behaviors
 
 class Emitter:
     def __init__(self, fullPath):
@@ -110,18 +111,17 @@ class Emitter:
                 self.emitLine(f'\t; -- let_statement --')
                 left, right_expr = statement.left, statement.right
                 right_expr = self.getExprValue(right_expr)
+                self.emitExpr(right_expr) # pointer to the list will be on top of stack
+                self.emitLine(f'\tpop rax')
                 varName, size = left.text, 8
                 if statement.args: # means that this is list init statement
                     arg = statement.args[0]
                     arg = Emitter.evalExpr(arg)
                     size = arg * 8
                     self.allocVariable(varName, size)
-
-                self.emitExpr(right_expr)
-                # result will be at top of stack
-                self.emitLine(f'\tpop rax')
-                varName, size = left.text, 8
-                self.allocVariable(varName, size)
+                else:
+                    varName, size = left.text, 8
+                    self.allocVariable(varName, size)
             elif statement.typ == 'label_statement':
                 self.emitLine(f'\t; -- label_statement --')
                 text = statement['label_statement']['text']
@@ -343,7 +343,7 @@ class Emitter:
                 for expr in exprs:
                     self.emitExpr(expr)
                 # there will be len(exprs) vars on stack after above
-                # head = self.stack
+                # the following allocates len(exprs) vars and then push the pointer to the first element on top of the stack
                 for i in range(len(exprs)):
                     self.emitLine('\tpop rax')
                     if i == (len(exprs) - 1):
@@ -367,9 +367,18 @@ class Emitter:
                         else:
                             self.allocStack(self.stackTable[varName], 0)
                     elif left[0].typ == 'subscript_expression':
-                        value = self.getExprValue(left[0].value)
+                        value, child = self.getExprValue(left[0].value), left[0].child
+                        assert child.typ == 'ident', "Subcript other than identifiers are not implemented"
+                        varName = child.text
+                        assert varName in self.stackTable, "Variable cross-reference should be handle in parsing stage"
                         self.emitExpr(value)
-                        print(left)
+                        self.emitLine(f'\tpop rax') # subscript value
+                        self.emitLine(f'\tlea rdx, [rbp-{self.stackTable[varName] - 8}+rax*8]') # rdx contains address now
+                        self.emitLine(f'\tpop rbx') # rhs
+                        self.emitLine(f'\tmov QWORD [rdx], rbx')
+                        self.emitLine(f'\tpush rbx')
+                        # print(child)
+                        # raise NotImplementedError('In subscript_expression')
                 elif left[-1].typ == 'pointer':
                     self.emitExpr(left[:-1]) # omit pointer (deref) operation
                     # result (address) will be on the top of stack
@@ -380,8 +389,15 @@ class Emitter:
                 else:
                     raise NotImplementedError('assignment_expression in emitExpr')
             elif expr.typ == 'subscript_expression':
-                print(expr)
-                raise NotImplementedError('subscript_expression in emitExpr')
+                value, child = self.getExprValue(expr.value), expr.child
+                assert child.typ == 'ident', "Subcript other than identifiers are not implemented"
+                varName = child.text
+                assert varName in self.stackTable, "Variable cross-reference should be handle in parsing stage"
+                self.emitExpr(value)
+                self.emitLine(f'\tpop rax') # subscript value
+                self.emitLine(f'\tlea rdx, [rbp-{self.stackTable[varName] - 8}+rax*8]') # rdx contains address now
+                self.emitLine(f'\tpush QWORD [rdx]')
+                # raise NotImplementedError('subscript_expression in emitExpr')
             elif expr.typ == 'pointer':
                 self.emitLine('\tpop rax')
                 self.emitLine('\tpush QWORD [rax]')
