@@ -17,7 +17,7 @@ if x then
 end
 
 x = 10
-while x do ' only while loop for now
+while x do // only while loop for now
     print(x)
     x = x - 1
 end

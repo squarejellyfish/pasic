@@ -3,5 +3,5 @@ let s = "string is pointer"
 
 print(x)
 
-x = 69 ' variables re-assignment
+x = 69 // variables re-assignment
 print(x)

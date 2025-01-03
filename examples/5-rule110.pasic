@@ -1,4 +1,4 @@
-'program that proves pasic language is turing complete'
+// program that proves pasic language is turing complete
 #define N 100
 
 let board[N] = [0]

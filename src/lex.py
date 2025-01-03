@@ -23,7 +23,7 @@ class Lexer:
     def nextChar(self):
         if self.curChar == '\n':
             self.curLine += 1
-            self.linePos = 1
+            self.linePos = -1
         self.curPos += 1
         self.linePos += 1
         if self.curPos >= len(self.source):
@@ -51,7 +51,7 @@ class Lexer:
 
     # Skip comments in the code.
     def skipComment(self):
-        if self.curChar == "'":
+        if self.curChar == '/' and self.peek() == '/':
             while self.curChar != '\n':
                 self.nextChar()
 

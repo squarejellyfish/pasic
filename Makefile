@@ -1,6 +1,6 @@
 TARGET = main
 SRC = ./src/lex.py ./src/emit.py ./src/parse.py
-EX_FILE = main.bas
+EX_FILE = main.pasic
 
 $(TARGET): pasic.py $(SRC) $(EX_FILE)
 	python pasic.py $(EX_FILE)
