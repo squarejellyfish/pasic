@@ -2,8 +2,9 @@
 from src.parse import BinaryNode, ExpressionNode, StatementNode
 from src.lex import Symbols, Keywords
 from typing import Union
+from math import log2, ceil
 
-STACK_PADDING = 1024
+Node = BinaryNode | ExpressionNode | StatementNode
 
 # TODO: list re-assignment will reallocate new list, old list is memory leaked (this is actually fine?)
 
@@ -12,6 +13,7 @@ class Emitter:
         self.fullPath = fullPath
         self.header = ""
         self.ender = ""
+        self.codeheader = ""
         self.code = ""
         self.staticVarCount = 0
         self.stackTable = dict()  # position of var in stack
@@ -27,15 +29,16 @@ class Emitter:
         # self.headerLine('section .bss')
         # self.headerLine('mem: resb 6400000')
         self.headerLine('section .data')
-        self.emitLine('')
-        self.emitLine('section .text')
-        self.emitLine('_start:')
-        self.emitLine('\tmov rbp, rsp')  # sync stack pointer
-        self.emitLine(f'\tsub rsp, {STACK_PADDING}')  # reserve space for stack pointer
+        self.codeHeader('')
+        self.codeHeader('section .text')
+        self.codeHeader('_start:')
+        self.codeHeader('\tmov rbp, rsp')  # sync stack pointer
         self.enderLine(DUMP)
         statements = input['program']['statements']
         for statement in statements:
             self.emitStatement(statement)
+        stack_padding = 2**ceil(log2(self.stack))
+        self.codeHeader(f'\tsub rsp, {stack_padding}')  # reserve space for stack pointer
 
         # SYS_EXIT
         self.emitLine(f'')
@@ -49,6 +52,9 @@ class Emitter:
     def emitLine(self, code):
         self.code += code + '\n'
 
+    def codeHeader(self, code):
+        self.codeheader += code + '\n'
+
     def headerLine(self, code):
         self.header += code + '\n'
 
@@ -57,7 +63,7 @@ class Emitter:
 
     def writeFile(self):
         with open(self.fullPath, 'w') as outputFile:
-            outputFile.write(self.header + self.code + self.ender)
+            outputFile.write(self.header + self.codeheader + self.code + self.ender)
 
     def emitStatement(self, statement: Union[StatementNode, ExpressionNode, BinaryNode]):
         assert len(Symbols) + len(Keywords) == 44, "Exhaustive handling of operation, notice that not all symbols need to be handled here, only those is a statement"
@@ -379,7 +385,6 @@ class Emitter:
         '''
         if varName not in self.stackTable:
             self.stackTable[varName] = self.stack
-            assert self.stack < STACK_PADDING, "Local variables overflowed to stack pointer, I'll fix this using dynamic stack padding later"
             self.allocStack(self.stack, size)
         else:
             self.allocStack(self.stackTable[varName], 0)

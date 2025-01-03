@@ -4,7 +4,6 @@ from src.lex import *
 from dataclasses import dataclass
 
 # Parser object keeps track of current token and checks if the code matches the grammar.
-# TODO: dynamic stack padding allocation
 # TODO: change assignment to be an expression
 
 EOF = Token('\0', Symbols.EOF)
