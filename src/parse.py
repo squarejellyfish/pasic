@@ -223,13 +223,7 @@ class Parser:
             ret.right = self.expression()
         # "IDENT"
         elif self.checkToken(Symbols.IDENT):
-            # "IDENT" = expression
-            if self.peekToken.kind is Symbols.EQ:
-                ret = StatementNode('assign_statement', left=ExpressionNode('ident', text=self.curToken.text))
-                self.nextToken()
-                self.nextToken()
-                ret.right = self.expression()
-            elif self.peekToken.kind is Symbols.COLON:
+            if self.peekToken.kind is Symbols.COLON:
                 # Check if this label already exist
                 if self.curToken.text in self.labelsDeclared:
                     self.abort(f"Label already exists: {self.curToken.text}")
@@ -240,11 +234,6 @@ class Parser:
                 self.match(Symbols.COLON)
             else:
                 ret = self.expression()
-        # '*'(pointer) = expression
-        elif self.checkToken(Symbols.ASTERISK):
-            ret = StatementNode('pointer_assignment', left=self.pointer())
-            self.match(Symbols.EQ)
-            ret.right = self.expression()
         # "return" [expression]
         elif self.checkToken(Keywords.RETURN):
             if self.peekToken.kind is Symbols.NEWLINE:
@@ -264,7 +253,16 @@ class Parser:
     # expression ::= comparison
     def expression(self):
         # 0 or 1 parenthese
-        return ExpressionNode('expression', child=self.comparison())
+        return ExpressionNode('expression', child=self.assignment_expression())
+
+    # assignment_expression ::= comparison '=' expression
+    #                       |   comparison
+    def assignment_expression(self):
+        ret = self.comparison()
+        if self.checkToken(Symbols.EQ):
+            self.nextToken()
+            ret = ExpressionNode('assignment_expression', left=ret, right=self.expression())
+        return ret
 
     # comparison ::= bor_expr (("==" | "!=" | ">" | ">=" | "<" | "<=") bor_expr)*
     def comparison(self):
@@ -343,10 +341,10 @@ class Parser:
         if self.checkToken(Symbols.PLUS) or self.checkToken(Symbols.MINUS):
             ret = ExpressionNode('unary_operator', text=self.curToken.text)
             self.nextToken()
-            ret.child = self.primary()
+            ret.child = self.postfix_expression()
             return ret
         else:
-            return self.primary()
+            return self.postfix_expression()
 
     # primary: (from python grammar)
     #     | primary '.' NAME
@@ -355,9 +353,10 @@ class Parser:
     #     | primary '[' slices ']'
     #     | atom
 
-    # primary ::= ('syscall' | 'write' | 'print') ['(' [expression (',' expression)*] ')']
-    #           | value
-    def primary(self):
+    # postfix_expression ::= ('syscall' | 'write' | 'print') ['(' [expression (',' expression)*] ')']
+    #                      | pointer '[' expression ']'
+    #                      | pointer
+    def postfix_expression(self):
         if self.checkToken(Keywords.SYSCALL):
             self.nextToken()
             self.match(Symbols.LPARENT)
@@ -372,8 +371,14 @@ class Parser:
                 self.abort(f"Syscall statement expects 1 to 7 args, found {
                            len(args_list)}")
             self.match(Symbols.RPARENT)
-        else:
-            ret = self.pointer()
+            return ret
+
+        ret = self.pointer()
+        if self.checkToken(Symbols.LBRACKET):
+            self.nextToken()
+            ret = ExpressionNode('subscript_expression', child=ret, value=self.expression()) 
+            self.match(Symbols.RBRACKET)
+
         return ret
 
     # pointer ::= '*' value
@@ -445,6 +450,9 @@ class ExpressionNode:
     items: Optional[list] = None
     args: Optional[list] = None
     child: Optional[Union['ExpressionNode', 'BinaryNode']] = None
+    value: Optional[Union['ExpressionNode', 'BinaryNode']] = None
+    left: Optional['ExpressionNode'] = None
+    right: Optional['ExpressionNode'] = None
 
 @dataclass
 class StatementNode:

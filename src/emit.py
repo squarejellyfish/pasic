@@ -122,18 +122,6 @@ class Emitter:
                 self.emitLine(f'\tpop rax')
                 varName, size = left.text, 8
                 self.allocVariable(varName, size)
-            elif statement.typ == 'assign_statement':
-                self.emitLine(f'\t; -- assign_statement')
-                left, right_expr = statement.left, statement.right
-                varName, right_expr = left.text, self.getExprValue(
-                    right_expr)
-                self.emitExpr(right_expr)
-                # result will be at top of stack
-                self.emitLine(f'\tpop rax')
-                if varName not in self.stackTable:
-                    assert False, 'Variable cross-reference should be handle in parsing stage'
-                else:
-                    self.allocStack(self.stackTable[varName], 0)
             elif statement.typ == 'label_statement':
                 self.emitLine(f'\t; -- label_statement --')
                 text = statement['label_statement']['text']
@@ -220,6 +208,7 @@ class Emitter:
                 self.emitLine(f'\tmov rdi, [rsp]')
                 self.emitLine(f'\tsyscall')
             elif statement.typ == 'pointer_assignment':
+                # TODO: deprecate this
                 left, right = statement.left, statement.right
                 left, right = self.getExprValue(left), self.getExprValue(right)
                 self.emitExpr(left[:-1])
@@ -362,7 +351,37 @@ class Emitter:
                         self.emitLine(f'\tsub rbx, {self.stack}')
                         self.emitLine(f'\tpush rbx')
                     self.allocStack(self.stack, 8)
-                # raise NotImplementedError(f"list_expression, without de-reference or indexing it's useless")
+            elif expr.typ == 'assignment_expression':
+                self.emitLine(f'\t; -- assignment_expression --')
+                left, right = expr.left, expr.right
+                left, right = self.getExprValue(left), self.getExprValue(right)
+                self.emitExpr(right)
+                # result will be at top of stack
+                if len(left) == 1:
+                    if left[0].typ == 'ident':
+                        self.emitLine(f'\tpop rax')
+                        varName = left[0].text
+                        if varName not in self.stackTable:
+                            print(f'{varName} is not in stack table, {expr=}')
+                            assert False, 'Variable cross-reference should be handle in parsing stage'
+                        else:
+                            self.allocStack(self.stackTable[varName], 0)
+                    elif left[0].typ == 'subscript_expression':
+                        value = self.getExprValue(left[0].value)
+                        self.emitExpr(value)
+                        print(left)
+                elif left[-1].typ == 'pointer':
+                    self.emitExpr(left[:-1]) # omit pointer (deref) operation
+                    # result (address) will be on the top of stack
+                    self.emitLine('\tpop rdx') # contains the address
+                    self.emitLine('\tpop rax')
+                    self.emitLine('\tmov QWORD [rdx], rax')
+                    self.emitLine('\tpush rax')
+                else:
+                    raise NotImplementedError('assignment_expression in emitExpr')
+            elif expr.typ == 'subscript_expression':
+                print(expr)
+                raise NotImplementedError('subscript_expression in emitExpr')
             elif expr.typ == 'pointer':
                 self.emitLine('\tpop rax')
                 self.emitLine('\tpush QWORD [rax]')
@@ -380,9 +399,7 @@ class Emitter:
         return self.labelTable[key]['stack'][-1]
 
     def allocVariable(self, varName: str, size: int):
-        '''
-        Allocate variable in rax on the stack
-        '''
+        ''' Allocate variable in rax on the stack '''
         if varName not in self.stackTable:
             self.stackTable[varName] = self.stack
             self.allocStack(self.stack, size)
@@ -446,6 +463,12 @@ class Emitter:
                     assert len(args) > 0 and len(args) <= 7, f"Syscall statement expects 1 to 7 args, found {len(args)}"
                     for arg in args: get(arg)
                     ret.append(expr)
+            elif expr.typ == 'assignment_expression':
+                ret.append(expr)
+                return 
+            elif expr.typ == 'subscript_expression':
+                ret.append(expr)
+                return
             elif isinstance(expr, ExpressionNode):
                 get(expr.child)
             elif isinstance(expr, BinaryNode):

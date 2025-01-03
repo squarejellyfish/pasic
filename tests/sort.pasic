@@ -1,0 +1,30 @@
+// program that sorts an array of 10 numbers
+#define N 10
+
+let nums = [1, 5, 3, 6, 69, 420, 129, 23, 465, 2]
+
+let i = 0
+while i < N - 1 do
+    let ord = *(nums + i * 8)
+
+    let j = i + 1
+    let index = i
+    while j < N do
+        let target = *(nums + j * 8)
+        if target < ord then
+            index = j
+        end
+        j = j + 1
+    end
+    let tmp = *(nums + i * 8)
+    *(nums + i * 8) = *(nums + index * 8)
+    *(nums + index * 8) = tmp
+
+    i = i + 1
+end
+
+i = 0
+while i < N do
+    print(*(nums + i * 8))
+    i = i + 1
+end
