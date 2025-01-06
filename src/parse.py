@@ -4,9 +4,11 @@ from src.lex import *
 from dataclasses import dataclass
 
 # Parser object keeps track of current token and checks if the code matches the grammar.
-# TODO: change assignment to be an expression
+# TODO: add support for command line args
 
 EOF = Token('\0', Symbols.EOF)
+
+RESERVED = {'mem', 'syscall', 'write'}
 
 class Parser:
     def __init__(self, tokens: list[Token]):
@@ -134,20 +136,11 @@ class Parser:
         # Check first token to see which statement
 
         ret = None
-        assert len(Symbols) + len(Keywords) == 44, "Exhaustive handling of operation, notice that not all symbols need to be handled, only those who need a statement"
+        assert len(Symbols) + len(Keywords) == 42, "Exhaustive handling of operation, notice that not all symbols need to be handled, only those who need a statement"
         # PRINT expression
         if self.checkToken(Keywords.PRINT):
             self.nextToken()
             ret = StatementNode('print_statement', child=self.expression())
-        # WRITE (addr: expression, length)
-        elif self.checkToken(Keywords.WRITE):
-            ret = StatementNode('write_statement', args=[])
-            self.nextToken()
-            self.match(Symbols.LPARENT)
-            ret.args.append(self.expression())
-            self.match(Symbols.COMMA)
-            ret.args.append(self.expression())
-            self.match(Symbols.RPARENT)
         # IF expression THEN {statement} END
         elif self.checkToken(Keywords.IF):
             self.nextToken()
@@ -357,27 +350,27 @@ class Parser:
     #                      | pointer '[' expression ']'
     #                      | pointer
     def postfix_expression(self):
-        if self.checkToken(Keywords.SYSCALL):
-            self.nextToken()
-            self.match(Symbols.LPARENT)
-            ret = ExpressionNode('call_expression', text=Keywords.SYSCALL.name.lower(), args=[])
-            args_list = ret.args
-            # need at least one arg (syscall number)
-            args_list.append(self.expression())
-            while not self.checkToken(Symbols.RPARENT):
-                self.match(Symbols.COMMA)
-                args_list.append(self.expression())
-            if len(args_list) < 1 or len(args_list) > 7:
-                self.abort(f"Syscall statement expects 1 to 7 args, found {
-                           len(args_list)}")
-            self.match(Symbols.RPARENT)
-            return ret
-
         ret = self.pointer()
         if self.checkToken(Symbols.LBRACKET):
             self.nextToken()
             ret = ExpressionNode('subscript_expression', child=ret, value=self.expression()) 
             self.match(Symbols.RBRACKET)
+        elif self.checkToken(Symbols.LPARENT):
+            self.nextToken()
+            ret = ExpressionNode('call_expression', text=ret.text, args=[])
+            args_list, consumed = ret.args, False
+            while not self.checkToken(Symbols.RPARENT):
+                if not consumed:
+                    args_list.append(self.expression())
+                    consumed = True
+                    continue
+                self.match(Symbols.COMMA)
+                args_list.append(self.expression())
+            # TODO: move this to type check (yes we are going to have type checks)
+            # if len(args_list) < 1 or len(args_list) > 7:
+            #     self.abort(f"Syscall statement expects 1 to 7 args, found {
+            #                len(args_list)}")
+            self.match(Symbols.RPARENT)
 
         return ret
 
@@ -406,7 +399,7 @@ class Parser:
             self.nextToken()
         elif self.checkToken(Symbols.IDENT):
             # Ensure var exists
-            if self.curToken.text in self.symbols:
+            if self.curToken.text in self.symbols or self.curToken.text in RESERVED:
                 ret = ExpressionNode('ident', text=self.curToken.text)
                 self.nextToken()
             else:

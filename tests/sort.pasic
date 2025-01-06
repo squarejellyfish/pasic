@@ -5,26 +5,26 @@ let nums = [1, 5, 3, 6, 69, 420, 129, 23, 465, 2]
 
 let i = 0
 while i < N - 1 do
-    let ord = *(nums + i * 8)
+    let ord = nums[i]
 
     let j = i + 1
     let index = i
     while j < N do
-        let target = *(nums + j * 8)
+        let target = nums[j]
         if target < ord then
             index = j
         end
         j = j + 1
     end
-    let tmp = *(nums + i * 8)
-    *(nums + i * 8) = *(nums + index * 8)
-    *(nums + index * 8) = tmp
+    let tmp = nums[i]
+    nums[i] = nums[index]
+    nums[index] = tmp
 
     i = i + 1
 end
 
 i = 0
 while i < N do
-    print(*(nums + i * 8))
+    print(nums[i])
     i = i + 1
 end

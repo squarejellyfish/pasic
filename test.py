@@ -1,19 +1,18 @@
 import os
 import subprocess
+import sys
 
-def run_tests():
-    examples_dir = "examples"
-
+def run_tests(dirname):
     # Get all .pasic files in the directory
-    pasic_files = sorted([f for f in os.listdir(examples_dir) if f.endswith(".pasic")])
+    pasic_files = sorted([f for f in os.listdir(dirname) if f.endswith(".pasic")])
 
     # Track test results
     failed_tests = []
 
     for pasic_file in pasic_files:
-        pasic_path = os.path.join(examples_dir, pasic_file)
+        pasic_path = os.path.join(dirname, pasic_file)
         ans_file = pasic_file.replace(".pasic", ".ans")
-        ans_path = os.path.join(examples_dir, ans_file)
+        ans_path = os.path.join(dirname, ans_file)
 
         if not os.path.isfile(ans_path):
             print(f"Answer file missing for '{pasic_file}', skipping test.")
@@ -22,7 +21,7 @@ def run_tests():
         try:
             # Run "python pasic.py [filename]"
             compile_process = subprocess.run(
-                ["python", "pasic.py", pasic_path],
+                ["python3", "pasic.py", pasic_path],
                 capture_output=True,
                 text=True
             )
@@ -80,4 +79,5 @@ def run_tests():
         print("\nAll tests passed successfully.")
 
 if __name__ == "__main__":
-    run_tests()
+    dirname = sys.argv[1]
+    run_tests(dirname)

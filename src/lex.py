@@ -265,12 +265,10 @@ class Keywords(Enum):
     NOT = auto()
     ELSE = auto()
     RETURN = auto()
-    WRITE = auto()
     DEFINE = auto()
-    SYSCALL = auto()
 
 
-assert len(Keywords) == 15, "Exhaustive handling in isKeyword(), forgot to add support for a keyword?"
+assert len(Keywords) == 13, "Exhaustive handling in isKeyword(), forgot to add support for a keyword?"
 KEYWORDS_TABLE = {
     'if': Keywords.IF,
     'label': Keywords.LABEL,
@@ -284,9 +282,7 @@ KEYWORDS_TABLE = {
     'not': Keywords.NOT,
     'else': Keywords.ELSE,
     'return': Keywords.RETURN,
-    'write': Keywords.WRITE,
     'define': Keywords.DEFINE,
-    'syscall': Keywords.SYSCALL,
 }
 
 class Token:

@@ -27,14 +27,14 @@ class Emitter:
         assert 'statements' in input['program']
 
         self.headerLine('\tglobal _start')
-        # self.headerLine('section .bss')
-        # self.headerLine('mem: resb 6400000')
         self.headerLine('section .data')
         self.codeHeader('')
         self.codeHeader('section .text')
         self.codeHeader('_start:')
         self.codeHeader('\tmov rbp, rsp')  # sync stack pointer
         self.enderLine(DUMP)
+        self.enderLine('section .bss')
+        self.enderLine('mem: resb 640000')
         statements = input['program']['statements']
         for statement in statements:
             self.emitStatement(statement)
@@ -67,7 +67,7 @@ class Emitter:
             outputFile.write(self.header + self.codeheader + self.code + self.ender)
 
     def emitStatement(self, statement: Union[StatementNode, ExpressionNode, BinaryNode]):
-        assert len(Symbols) + len(Keywords) == 44, "Exhaustive handling of operation, notice that not all symbols need to be handled here, only those is a statement"
+        assert len(Symbols) + len(Keywords) == 42, "Exhaustive handling of operation, notice that not all symbols need to be handled here, only those is a statement"
         if isinstance(statement, StatementNode):
             if statement.typ == 'print_statement':
                 # SYS_WRITE syscall
@@ -91,22 +91,6 @@ class Emitter:
                     # result will be at top of stack
                     self.emitLine(f'\tpop rdi')
                     self.emitLine(f'\tcall dump')
-            elif statement.typ == 'write_statement':
-                # SYS_WRITE but only write 1 char
-                self.emitLine(f'\t; -- write_statement --')
-                args = statement.args
-                left, right = self.getExprValue(args[0]), self.getExprValue(args[1])
-                self.emitExpr(right)
-                self.emitExpr(left)
-                if left[0].typ == 'ident':
-                    self.emitLine(f'\tpop rsi')
-                else:
-                    self.emitLine(f'\tmov rsi, rsp') # rsi takes address
-                    self.emitLine(f'\tadd rsp, 8')
-                self.emitLine(f'\tpop rdx') # pop arg length
-                self.emitLine(f'\tmov rax, 1')  # SYS_WRITE = 1
-                self.emitLine(f'\tmov rdi, 1')  # stdout = 1
-                self.emitLine(f'\tsyscall')
             elif statement.typ == 'let_statement':
                 self.emitLine(f'\t; -- let_statement --')
                 left, right_expr = statement.left, statement.right
@@ -207,18 +191,6 @@ class Emitter:
                 self.emitLine(f'\tmov rax, 60')  # SYS_EXIT
                 self.emitLine(f'\tmov rdi, [rsp]')
                 self.emitLine(f'\tsyscall')
-            elif statement.typ == 'pointer_assignment':
-                # TODO: deprecate this
-                left, right = statement.left, statement.right
-                left, right = self.getExprValue(left), self.getExprValue(right)
-                self.emitExpr(left[:-1])
-                # result (address) will be on the top of stack
-                self.emitExpr(right)
-                self.emitLine('\tpop rdx')
-                self.emitLine('\tpop rax') # contains the address
-                self.emitLine('\tmov QWORD [rax], rdx')
-                # print(left)
-                # raise NotImplementedError('Pointer assignment is not implemented yet')
         else:
             expr = self.getExprValue(statement)
             self.emitExpr(expr)
@@ -231,9 +203,13 @@ class Emitter:
             if expr.typ == 'number':
                 self.emitLine(f'\tpush {expr.text}')
             elif expr.typ == 'ident':
-                self.emitLine(
-                    f'\tmov rax, [rbp - {self.stackTable[expr.text]}]')
-                self.emitLine(f'\tpush rax')
+                if expr.text == 'mem':
+                    self.emitLine(f'\tpush mem')
+                    # raise NotImplementedError('mem keyword')
+                else:
+                    self.emitLine(
+                        f'\tmov rax, [rbp - {self.stackTable[expr.text]}]')
+                    self.emitLine(f'\tpush rax')
             elif expr.typ == 'unary_operator':
                 self.emitLine(f'\tpop rax')
                 self.emitLine(f'\tneg rax')
@@ -314,7 +290,7 @@ class Emitter:
                 else:
                     raise NotImplementedError(f'Operation {operator} is not implemented')
             elif expr.typ == 'string':
-                if len(exprs) == 1:
+                # if len(exprs) == 1:
                     text = bytes(expr.text.encode('utf-8')).decode('unicode_escape')
                     text += '\0'
                     output = ', '.join([hex(ord(char)) for char in text])
@@ -324,17 +300,34 @@ class Emitter:
                         f'static_{self.staticVarCount}_len: equ $-static_{self.staticVarCount}')
                     self.emitLine(f'\tpush static_{self.staticVarCount}')
                     self.staticVarCount += 1
-                else:
-                    raise NotImplementedError(
-                        'String operation is not implemented')
+                # else:
+                #     raise NotImplementedError(
+                #         f'String operation is not implemented, {exprs=}')
             elif expr.typ == 'call_expression':
                 name, argc = expr.text, len(expr.args)
                 if name == 'syscall':
+                    self.emitLine('\t; -- syscall builtin --')
                     convention = ['rax', 'rdi', 'rsi', 'rdx', 'r10', 'r8', 'r9']
                     for i in reversed(range(argc)):
                         self.emitLine(f'\tpop {convention[i]}')
                     self.emitLine('\tsyscall')
                     self.emitLine('\tpush rax') # push result on to the stack
+                elif name == 'write':
+                    # SYS_WRITE but only write 1 char
+                    self.emitLine(f'\t; -- write builtin --')
+                    args = expr.args
+                    left, right = self.getExprValue(args[0]), self.getExprValue(args[1])
+                    self.emitExpr(right)
+                    self.emitExpr(left)
+                    # if left[0].typ == 'ident':
+                    #     self.emitLine(f'\tpop rsi')
+                    # else:
+                    self.emitLine(f'\tmov rsi, rsp') # rsi takes address
+                    self.emitLine(f'\tadd rsp, 8')
+                    self.emitLine(f'\tpop rdx') # pop arg length
+                    self.emitLine(f'\tmov rax, 1')  # SYS_WRITE = 1
+                    self.emitLine(f'\tmov rdi, 1')  # stdout = 1
+                    self.emitLine(f'\tsyscall')
                 else:
                     raise NotImplementedError(f"Call expression {name} is not implemented")
             elif expr.typ == 'list_expression':
@@ -477,6 +470,9 @@ class Emitter:
                 text = expr.text
                 if text == 'syscall':
                     assert len(args) > 0 and len(args) <= 7, f"Syscall statement expects 1 to 7 args, found {len(args)}"
+                    for arg in args: get(arg)
+                    ret.append(expr)
+                elif text == 'write':
                     for arg in args: get(arg)
                     ret.append(expr)
             elif expr.typ == 'assignment_expression':

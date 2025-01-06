@@ -3,7 +3,7 @@ SRC = ./src/lex.py ./src/emit.py ./src/parse.py
 EX_FILE = main.pasic
 
 $(TARGET): pasic.py $(SRC) $(EX_FILE)
-	python pasic.py $(EX_FILE)
+	python3 pasic.py $(EX_FILE)
 
 asm: main.asm
 	nasm -felf64 -g $(TARGET).asm
