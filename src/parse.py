@@ -5,10 +5,10 @@ from dataclasses import dataclass
 
 # Parser object keeps track of current token and checks if the code matches the grammar.
 # TODO: add support for command line args
+# TODO: type system
+# TODO: function calls
 
 EOF = Token('\0', Symbols.EOF)
-
-RESERVED = {'mem', 'syscall', 'write'}
 
 class Parser:
     def __init__(self, tokens: list[Token]):
@@ -399,12 +399,15 @@ class Parser:
             self.nextToken()
         elif self.checkToken(Symbols.IDENT):
             # Ensure var exists
-            if self.curToken.text in self.symbols or self.curToken.text in RESERVED:
+            if self.curToken.text in self.symbols:
                 ret = ExpressionNode('ident', text=self.curToken.text)
                 self.nextToken()
             else:
                 self.abort(f"Referencing variable before assignment: {
                            self.curToken.text}")
+        elif isinstance(self.curToken.kind, Builtins):
+            ret = ExpressionNode('ident', text=self.curToken.text)
+            self.nextToken()
         else:
             ret = self.list_expression()
 

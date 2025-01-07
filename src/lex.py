@@ -163,13 +163,7 @@ class Lexer:
                 self.nextChar()
 
             text = self.source[startPos:self.curPos + 1]
-            iskeyword, kind = Token.isKeyword(text)
-            if iskeyword:
-                token = Token(text, kind, (self.sourceName,
-                              self.curLine, self.linePos))
-            else:
-                token = Token(text, Symbols.IDENT,
-                              (self.sourceName, self.curLine, self.linePos))
+            token = Token(text, Token.getKind(text), (self.sourceName, self.curLine, self.linePos))
         elif self.curChar == '\n':
             token = Token(self.curChar, Symbols.NEWLINE,
                           (self.sourceName, self.curLine, self.linePos))
@@ -252,6 +246,7 @@ class Symbols(Enum):
     BOR = auto()  # bitwise or
     BXOR = auto()  # bitwise xor
 
+
 class Keywords(Enum):
     LABEL = auto()
     GOTO = auto()
@@ -268,7 +263,8 @@ class Keywords(Enum):
     DEFINE = auto()
 
 
-assert len(Keywords) == 13, "Exhaustive handling in isKeyword(), forgot to add support for a keyword?"
+assert len(
+    Keywords) == 13, "Exhaustive handling of keywords table, forgot to add support for a keyword?"
 KEYWORDS_TABLE = {
     'if': Keywords.IF,
     'label': Keywords.LABEL,
@@ -285,6 +281,21 @@ KEYWORDS_TABLE = {
     'define': Keywords.DEFINE,
 }
 
+
+class Builtins(Enum):
+    SYSCALL = auto()
+    WRITE = auto()
+    MEM = auto()
+
+
+assert len(Builtins) == 3, "Exhaustive handling of builtins table"
+BUILTINS_TABLE = {
+    'syscall': Builtins.SYSCALL,
+    'write': Builtins.WRITE,
+    'mem': Builtins.MEM,
+}
+
+
 class Token:
     def __init__(self, tokenText, tokenKind, pos=('', 0, 0)):
         # The token's actual text. Used for identifiers, strings, and numbers.
@@ -294,11 +305,13 @@ class Token:
         self.pos = pos
 
     @staticmethod
-    def isKeyword(text):
-        if text not in KEYWORDS_TABLE:
-            return (False, None)
-        
-        return (True, KEYWORDS_TABLE[text])
+    def getKind(text):
+        if text  in KEYWORDS_TABLE:
+            return KEYWORDS_TABLE[text]
+        elif text in BUILTINS_TABLE:
+            return BUILTINS_TABLE[text]
+
+        return Symbols.IDENT
 
     def __str__(self) -> str:
         return f'({self.kind}, {repr(self.text)}, {self.pos})'

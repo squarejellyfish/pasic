@@ -3,6 +3,7 @@ foo*
 .env
 parse.json
 parse.xml
+grammar.md
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
