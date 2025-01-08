@@ -406,6 +406,7 @@ class Parser:
                 self.abort(f"Referencing variable before assignment: {
                            self.curToken.text}")
         elif isinstance(self.curToken.kind, Builtins):
+            # TODO: this doesn't make sense?
             ret = ExpressionNode('ident', text=self.curToken.text)
             self.nextToken()
         else:
