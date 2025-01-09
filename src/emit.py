@@ -9,6 +9,9 @@ Node = BinaryNode | ExpressionNode | StatementNode
 # TODO: list re-assignment will reallocate new list, old list is memory leaked (this is actually fine?)
 # TODO: list init with [] will cause weird behaviors
 
+CONVENTION_SYSCALL = ['rax', 'rdi', 'rsi', 'rdx', 'r10', 'r8', 'r9']
+CONVENTION_FUNC = ['rdi', 'rsi', 'rdx', 'rcx', 'r8', 'r9']
+
 class Emitter:
     def __init__(self, fullPath):
         self.fullPath = fullPath
@@ -16,8 +19,9 @@ class Emitter:
         self.ender = ""
         self.codeheader = ""
         self.code = ""
+        self.funcCode = ""
         self.staticVarCount = 0
-        self.stackTable = dict()  # position of var in stack
+        self.stackTable = [dict()]  # position of var in stack of current scope
         self.stack = 8  # reserve 8 bytes for rbp himself
         self.labelTable = {'if': {'count': 0, 'stack': []}, 'if_end': {'count': 0, 'stack': []}, 'while': {
             'count': 0, 'stack': []}, 'while_end': {'count': 0, 'stack': []}}
@@ -32,9 +36,6 @@ class Emitter:
         self.codeHeader('section .text')
         self.codeHeader('_start:')
         self.codeHeader('\tmov rbp, rsp')  # sync stack pointer
-        self.enderLine(DUMP)
-        self.enderLine('section .bss')
-        self.enderLine('mem: resb 640000')
         statements = input['program']['statements']
         for statement in statements:
             self.emitStatement(statement)
@@ -46,6 +47,10 @@ class Emitter:
         self.emitLine(f'\tmov rax, 60')
         self.emitLine(f'\tmov rdi, 0')
         self.emitLine(f'\tsyscall')
+
+        self.enderLine(DUMP)
+        self.enderLine('section .bss')
+        self.enderLine('mem: resb 64000')
 
     def emit(self, code):
         self.code += code
@@ -64,14 +69,15 @@ class Emitter:
 
     def writeFile(self):
         with open(self.fullPath, 'w') as outputFile:
-            outputFile.write(self.header + self.codeheader + self.code + self.ender)
+            outputFile.write(self.header + self.codeheader + self.code + self.funcCode + self.ender)
 
-    def emitStatement(self, statement: Union[StatementNode, ExpressionNode, BinaryNode]):
-        assert len(Symbols) + len(Keywords) == 42, "Exhaustive handling of operation, notice that not all symbols need to be handled here, only those is a statement"
+    def emitStatement(self, statement: Union[StatementNode, ExpressionNode, BinaryNode], inFunc=False):
+        assert len(Symbols) + len(Keywords) == 43, "Exhaustive handling of operation, notice that not all symbols need to be handled here, only those is a statement"
+        emitLine = self.emitLine if not inFunc else self.emitFuncLine
         if isinstance(statement, StatementNode):
             if statement.typ == 'print_statement':
                 # SYS_WRITE syscall
-                self.emitLine(f'\t; -- print_statement --')
+                emitLine(f'\t; -- print_statement --')
                 expr_postfix = self.getExprValue(
                     statement.child)
                 if len(expr_postfix) == 1 and expr_postfix[0].typ == 'string':
@@ -79,54 +85,54 @@ class Emitter:
                     output = ', '.join([hex(ord(char)) for char in text])
                     self.headerLine(
                         f'static_{self.staticVarCount}: db {output}')
-                    self.emitLine(f'\tmov rax, 1')  # SYS_WRITE = 1
-                    self.emitLine(f'\tmov rdi, 1')  # stdout = 1
+                    emitLine(f'\tmov rax, 1')  # SYS_WRITE = 1
+                    emitLine(f'\tmov rdi, 1')  # stdout = 1
                     rsi_arg = f'static_{self.staticVarCount}'
-                    self.emitLine(f'\tmov rsi, {rsi_arg}')  # mem location
-                    self.emitLine(f'\tmov rdx, {len(text)}')  # length
-                    self.emitLine(f'\tsyscall')
+                    emitLine(f'\tmov rsi, {rsi_arg}')  # mem location
+                    emitLine(f'\tmov rdx, {len(text)}')  # length
+                    emitLine(f'\tsyscall')
                     self.staticVarCount += 1
                 else: # is a number, we call builtin function dump
-                    self.emitExpr(expr_postfix)
+                    self.emitExpr(expr_postfix, inFunc)
                     # result will be at top of stack
-                    self.emitLine(f'\tpop rdi')
-                    self.emitLine(f'\tcall dump')
+                    emitLine(f'\tpop rdi')
+                    emitLine(f'\tcall dump')
             elif statement.typ == 'let_statement':
-                self.emitLine(f'\t; -- let_statement --')
+                emitLine(f'\t; -- let_statement --')
                 left, right_expr = statement.left, statement.right
                 right_expr = self.getExprValue(right_expr)
-                self.emitExpr(right_expr) # pointer to the list will be on top of stack
-                self.emitLine(f'\tpop rax')
+                self.emitExpr(right_expr, inFunc) # pointer to the list will be on top of stack
+                emitLine(f'\tpop rax')
                 varName, size = left.text, 8
                 if statement.args: # means that this is list init statement
                     arg = statement.args[0]
                     arg = Emitter.evalExpr(arg)
                     size = arg * 8
-                    self.allocVariable(varName, size)
+                    self.allocVariable(varName, size, inFunc=inFunc)
                 else:
                     varName, size = left.text, 8
-                    self.allocVariable(varName, size)
+                    self.allocVariable(varName, size, inFunc=inFunc)
             elif statement.typ == 'label_statement':
-                self.emitLine(f'\t; -- label_statement --')
+                emitLine(f'\t; -- label_statement --')
                 text = statement['label_statement']['text']
-                self.emitLine(f'{text}:')
+                emitLine(f'{text}:')
             elif statement.typ == 'goto_statement':
-                self.emitLine(f'\t; -- goto_statement')
+                emitLine(f'\t; -- goto_statement')
                 dest = statement['goto_statement']['destination']
-                self.emitLine(f'\tjmp {dest}')
+                emitLine(f'\tjmp {dest}')
             elif statement.typ == 'if_statement':
-                self.emitLine(f'\t; -- if_statement')
+                emitLine(f'\t; -- if_statement')
                 condition, body = statement.condition, statement.body
                 condition = self.getExprValue(condition)
-                self.emitExpr(condition)
+                self.emitExpr(condition, inFunc)
                 # result on top of stack
-                self.emitLine(f'\tpop rax')
-                self.emitLine(f'\ttest rax, rax')
-                self.emitLine(f'\tje IF_{self.labelTable['if']['count']}')
+                emitLine(f'\tpop rax')
+                emitLine(f'\ttest rax, rax')
+                emitLine(f'\tje IF_{self.labelTable['if']['count']}')
                 self.addrStackPush('if')
                 for stmt in body:
                     self.emitStatement(stmt)
-                self.emitLine(f'\tjmp END_{self.labelTable['if_end']['count']}')
+                emitLine(f'\tjmp END_{self.labelTable['if_end']['count']}')
                 self.addrStackPush('if_end')
                 alternative, end = statement.alternative if statement.alternative else [], False
                 for stmt in alternative:
@@ -137,156 +143,183 @@ class Emitter:
                 # 'else' will setup end jmp label for us, if no alternative, setup ourself
                 if not end:  # no else, but has elif
                     addr = self.addrStackPop('if')
-                    self.emitLine(f'IF_{addr}:')
+                    emitLine(f'IF_{addr}:')
                     addr = self.addrStackPop('if_end')
-                    self.emitLine(f'END_{addr}:')
+                    emitLine(f'END_{addr}:')
                 # result will be at top of stack
             elif statement.typ == 'elseif_statement':
-                self.emitLine(f'\t; -- elseif_statement')
+                emitLine(f'\t; -- elseif_statement')
                 addr = self.addrStackPop('if')
-                self.emitLine(f'IF_{addr}:')
+                emitLine(f'IF_{addr}:')
                 condition, body = statement.condition, statement.body
                 condition = self.getExprValue(condition)
-                self.emitExpr(condition)
+                self.emitExpr(condition, inFunc)
                 # result on top of stack
-                self.emitLine(f'\tpop rax')
-                self.emitLine(f'\ttest rax, rax')
-                self.emitLine(f'\tje IF_{self.labelTable['if']['count']}')
+                emitLine(f'\tpop rax')
+                emitLine(f'\ttest rax, rax')
+                emitLine(f'\tje IF_{self.labelTable['if']['count']}')
                 self.addrStackPush('if')
                 for stmt in body:
                     self.emitStatement(stmt)
                 addr = self.addrStackPeek('if_end')
-                self.emitLine(f'\tjmp END_{addr}')
+                emitLine(f'\tjmp END_{addr}')
             elif statement.typ == 'else_statement':
-                self.emitLine(f'\t; -- else_statement --')
+                emitLine(f'\t; -- else_statement --')
                 addr = self.addrStackPop('if')
-                self.emitLine(f'IF_{addr}:')
+                emitLine(f'IF_{addr}:')
                 body = statement.body
                 for stmt in body:
                     self.emitStatement(stmt)
                 addr = self.addrStackPop('if_end')
-                self.emitLine(f'END_{addr}:')
+                emitLine(f'END_{addr}:')
             elif statement.typ == 'while_statement':
-                self.emitLine(f'\t; -- while_statement --')
-                self.emitLine(f'WHILE_{self.labelTable['while']['count']}:')
+                emitLine(f'\t; -- while_statement --')
+                emitLine(f'WHILE_{self.labelTable['while']['count']}:')
                 self.addrStackPush('while')
                 condition, body = statement.condition, statement.body
                 condition = self.getExprValue(condition)
-                self.emitExpr(condition)
+                self.emitExpr(condition, inFunc)
                 # result on top of stack
-                self.emitLine(f'\tpop rax')
-                self.emitLine(f'\ttest rax, rax')
-                self.emitLine(f'\tje END_WHILE_{self.labelTable['while_end']['count']}')
+                emitLine(f'\tpop rax')
+                emitLine(f'\ttest rax, rax')
+                emitLine(f'\tje END_WHILE_{self.labelTable['while_end']['count']}')
                 self.addrStackPush('while_end')
                 for stmt in body:
                     self.emitStatement(stmt)
                 addr = self.addrStackPop('while')
-                self.emitLine(f'\tjmp WHILE_{addr}')
+                emitLine(f'\tjmp WHILE_{addr}')
                 addr = self.addrStackPop('while_end')
-                self.emitLine(f'END_WHILE_{addr}:')
+                emitLine(f'END_WHILE_{addr}:')
+            elif statement.typ == 'func_declaration':
+                func_name, args, body = statement.text, statement.args, statement.body
+                emitLine = self.emitFuncLine
+                emitLine(f'; function {func_name}')
+                emitLine(f'{func_name}:')
+                emitLine(f'\tpush rbp')
+                emitLine(f'\tmov rbp, rsp')
+                emitLine(f'\tsub rsp, 1024') # TODO: function local variable stack padding
+                original = self.stack
+                self.stack = 8
+                for i, arg in enumerate(args):
+                    self.allocVariable(arg.text, 8, CONVENTION_FUNC[i], inFunc=True)
+                for stmt in body:
+                    self.emitStatement(stmt, inFunc=True)
+                # move return value to rax before returning
+                self.stack = original
+                emitLine(f'\tleave')
+                emitLine(f'\tret')
+                # raise NotImplementedError('func_declaration')
             elif statement.typ == 'return_statement':
-                exprs = self.getExprValue(statement['return_statement'])
-                self.emitExpr(exprs)
+                emitLine('\t; -- return --')
+                exprs = self.getExprValue(statement.value)
+                self.emitExpr(exprs, inFunc)
                 # result will be at top of stack
-                self.emitLine(f'\tmov rax, 60')  # SYS_EXIT
-                self.emitLine(f'\tmov rdi, [rsp]')
-                self.emitLine(f'\tsyscall')
+                emitLine('\tpop rax')
         else:
             expr = self.getExprValue(statement)
-            self.emitExpr(expr)
+            self.emitExpr(expr, inFunc)
 
-    def emitExpr(self, exprs: list):
+    def emitExpr(self, exprs: list, inFunc=False):
         '''
         Expression result will be at top of stack
         '''
+        emitLine = self.emitLine if not inFunc else self.emitFuncLine
         for expr in exprs:
             if expr.typ == 'number':
-                self.emitLine(f'\tpush {expr.text}')
+                emitLine(f'\tpush {expr.text}')
             elif expr.typ == 'ident':
                 if expr.text == 'mem':
-                    self.emitLine(f'\tpush mem')
+                    emitLine(f'\tpush mem')
                     # raise NotImplementedError('mem keyword')
                 else:
-                    self.emitLine(
-                        f'\tmov rax, [rbp - {self.stackTable[expr.text]}]')
-                    self.emitLine(f'\tpush rax')
+                    emitLine(
+                        f'\tmov rax, [rbp - {self.stackTable[-1][expr.text]}]')
+                    emitLine(f'\tpush rax')
             elif expr.typ == 'unary_operator':
-                self.emitLine(f'\tpop rax')
-                self.emitLine(f'\tneg rax')
-                self.emitLine(f'\tpush rax')
+                emitLine(f'\tpop rax')
+                emitLine(f'\tneg rax')
+                emitLine(f'\tpush rax')
             elif expr.typ == 'operator':
                 operator = expr.text
                 if operator == '+':  # pop top of stack to rax, and add back to top of stack
-                    self.emitLine(f'\tpop rax')
-                    self.emitLine(f'\tadd [rsp], rax')
+                    emitLine(f'\tpop rax')
+                    emitLine(f'\tadd [rsp], rax')
                 elif operator == '-':
-                    self.emitLine(f'\tpop rax')
-                    self.emitLine(f'\tsub [rsp], rax')
+                    emitLine(f'\tpop rax')
+                    emitLine(f'\tsub [rsp], rax')
                 elif operator == '*':
-                    self.emitLine(f'\tpop rax')
-                    self.emitLine(f'\tpop rbx')
-                    self.emitLine(f'\timul rax, rbx')
-                    self.emitLine(f'\tpush rax')
+                    emitLine(f'\tpop rax')
+                    emitLine(f'\tpop rbx')
+                    emitLine(f'\timul rax, rbx')
+                    emitLine(f'\tpush rax')
                 elif operator == '/':
-                    self.emitLine(f'\tpop rbx')
-                    self.emitLine(f'\tpop rax')
-                    self.emitLine(f'\txor rdx, rdx')  # remainder will be here
-                    self.emitLine(f'\tidiv rbx')
-                    self.emitLine(f'\tpush rax')
+                    emitLine(f'\tpop rbx')
+                    emitLine(f'\tpop rax')
+                    emitLine(f'\txor rdx, rdx')  # remainder will be here
+                    emitLine(f'\tidiv rbx')
+                    emitLine(f'\tpush rax')
                 elif operator == '==':
-                    self.emitLine(f'\tpop rax')
-                    self.emitLine(f'\tpop rbx')
-                    self.emitLine(f'\tmov rcx, 0')
-                    self.emitLine(f'\tmov rdx, 1')
-                    self.emitLine(f'\tcmp rax, rbx')
-                    self.emitLine(f'\tcmove rcx, rdx')
-                    self.emitLine(f'\tpush rcx')
+                    emitLine(f'\tpop rax')
+                    emitLine(f'\tpop rbx')
+                    emitLine(f'\tmov rcx, 0')
+                    emitLine(f'\tmov rdx, 1')
+                    emitLine(f'\tcmp rax, rbx')
+                    emitLine(f'\tcmove rcx, rdx')
+                    emitLine(f'\tpush rcx')
+                elif operator == '!=':
+                    emitLine(f'\tpop rax')
+                    emitLine(f'\tpop rbx')
+                    emitLine(f'\tmov rcx, 0')
+                    emitLine(f'\tmov rdx, 1')
+                    emitLine(f'\tcmp rax, rbx')
+                    emitLine(f'\tcmovne rcx, rdx')
+                    emitLine(f'\tpush rcx')
                 elif operator == '%':
-                    self.emitLine(f'\tpop rbx')
-                    self.emitLine(f'\tpop rax')
-                    self.emitLine(f'\txor rdx, rdx')  # remainder will be here
-                    self.emitLine(f'\tidiv rbx')
-                    self.emitLine(f'\tpush rdx')
+                    emitLine(f'\tpop rbx')
+                    emitLine(f'\tpop rax')
+                    emitLine(f'\txor rdx, rdx')  # remainder will be here
+                    emitLine(f'\tidiv rbx')
+                    emitLine(f'\tpush rdx')
                 elif operator == '<<':
-                    self.emitLine(f'\tpop rcx')
-                    self.emitLine(f'\tpop rax')
-                    self.emitLine(f'\tshl rax, cl')
-                    self.emitLine(f'\tpush rax')
+                    emitLine(f'\tpop rcx')
+                    emitLine(f'\tpop rax')
+                    emitLine(f'\tshl rax, cl')
+                    emitLine(f'\tpush rax')
                 elif operator == '>>':
-                    self.emitLine(f'\tpop rcx')
-                    self.emitLine(f'\tpop rax')
-                    self.emitLine(f'\tshr rax, cl')
-                    self.emitLine(f'\tpush rax')
+                    emitLine(f'\tpop rcx')
+                    emitLine(f'\tpop rax')
+                    emitLine(f'\tshr rax, cl')
+                    emitLine(f'\tpush rax')
                 elif operator == '|':
-                    self.emitLine(f'\tpop rbx')
-                    self.emitLine(f'\tpop rax')
-                    self.emitLine(f'\tor rax, rbx')
-                    self.emitLine(f'\tpush rax')
+                    emitLine(f'\tpop rbx')
+                    emitLine(f'\tpop rax')
+                    emitLine(f'\tor rax, rbx')
+                    emitLine(f'\tpush rax')
                 elif operator == '&':
-                    self.emitLine(f'\tpop rbx')
-                    self.emitLine(f'\tpop rax')
-                    self.emitLine(f'\tand rax, rbx')
-                    self.emitLine(f'\tpush rax')
+                    emitLine(f'\tpop rbx')
+                    emitLine(f'\tpop rax')
+                    emitLine(f'\tand rax, rbx')
+                    emitLine(f'\tpush rax')
                 elif operator == '^':
-                    self.emitLine(f'\tpop rbx')
-                    self.emitLine(f'\tpop rax')
-                    self.emitLine(f'\txor rax, rbx')
-                    self.emitLine(f'\tpush rax')
+                    emitLine(f'\tpop rbx')
+                    emitLine(f'\tpop rax')
+                    emitLine(f'\txor rax, rbx')
+                    emitLine(f'\tpush rax')
                 elif operator == '<' or operator == '>' or operator == '<=' or operator == '>=':
-                    self.emitLine(f'\tpop rbx')
-                    self.emitLine(f'\tpop rax')
-                    self.emitLine(f'\txor rcx, rcx')
-                    self.emitLine(f'\tmov rdx, 1')
-                    self.emitLine(f'\tcmp rax, rbx')
+                    emitLine(f'\tpop rbx')
+                    emitLine(f'\tpop rax')
+                    emitLine(f'\txor rcx, rcx')
+                    emitLine(f'\tmov rdx, 1')
+                    emitLine(f'\tcmp rax, rbx')
                     if operator == '<':
-                        self.emitLine(f'\tcmovl rcx, rdx')
+                        emitLine(f'\tcmovl rcx, rdx')
                     elif operator == '>':
-                        self.emitLine(f'\tcmovg rcx, rdx')
+                        emitLine(f'\tcmovg rcx, rdx')
                     elif operator == '<=':
-                        self.emitLine(f'\tcmovle rcx, rdx')
+                        emitLine(f'\tcmovle rcx, rdx')
                     elif operator == '>=':
-                        self.emitLine(f'\tcmovge rcx, rdx')
-                    self.emitLine(f'\tpush rcx')
+                        emitLine(f'\tcmovge rcx, rdx')
+                    emitLine(f'\tpush rcx')
                 else:
                     raise NotImplementedError(f'Operation {operator} is not implemented')
             elif expr.typ == 'string':
@@ -298,7 +331,7 @@ class Emitter:
                         f'static_{self.staticVarCount}: db {output}')
                     self.headerLine(
                         f'static_{self.staticVarCount}_len: equ $-static_{self.staticVarCount}')
-                    self.emitLine(f'\tpush static_{self.staticVarCount}')
+                    emitLine(f'\tpush static_{self.staticVarCount}')
                     self.staticVarCount += 1
                 # else:
                 #     raise NotImplementedError(
@@ -306,30 +339,36 @@ class Emitter:
             elif expr.typ == 'call_expression':
                 name, argc = expr.text, len(expr.args)
                 if name == 'syscall':
-                    self.emitLine('\t; -- syscall builtin --')
-                    convention = ['rax', 'rdi', 'rsi', 'rdx', 'r10', 'r8', 'r9']
+                    emitLine('\t; -- syscall builtin --')
                     for i in reversed(range(argc)):
-                        self.emitLine(f'\tpop {convention[i]}')
-                    self.emitLine('\tsyscall')
-                    self.emitLine('\tpush rax') # push result on to the stack
+                        emitLine(f'\tpop {CONVENTION_SYSCALL[i]}')
+                    emitLine('\tsyscall')
+                    emitLine('\tpush rax') # push result on to the stack
                 elif name == 'write':
                     # SYS_WRITE but only write 1 char
-                    self.emitLine(f'\t; -- write builtin --')
+                    emitLine(f'\t; -- write builtin --')
                     args = expr.args
                     left, right = self.getExprValue(args[0]), self.getExprValue(args[1])
                     self.emitExpr(right)
                     self.emitExpr(left)
                     # if left[0].typ == 'ident':
-                    #     self.emitLine(f'\tpop rsi')
+                    #     emitLine(f'\tpop rsi')
                     # else:
-                    self.emitLine(f'\tmov rsi, rsp') # rsi takes address
-                    self.emitLine(f'\tadd rsp, 8')
-                    self.emitLine(f'\tpop rdx') # pop arg length
-                    self.emitLine(f'\tmov rax, 1')  # SYS_WRITE = 1
-                    self.emitLine(f'\tmov rdi, 1')  # stdout = 1
-                    self.emitLine(f'\tsyscall')
+                    emitLine(f'\tmov rsi, rsp') # rsi takes address
+                    emitLine(f'\tadd rsp, 8')
+                    emitLine(f'\tpop rdx') # pop arg length
+                    emitLine(f'\tmov rax, 1')  # SYS_WRITE = 1
+                    emitLine(f'\tmov rdi, 1')  # stdout = 1
+                    emitLine(f'\tsyscall')
                 else:
-                    raise NotImplementedError(f"Call expression {name} is not implemented")
+                    emitLine(f'\t ; -- call {expr.text} --')
+                    args = expr.args
+                    for i, arg in enumerate(reversed(args)):
+                        arg = self.getExprValue(arg)
+                        self.emitExpr(arg, inFunc)
+                        emitLine(f'\tmov {CONVENTION_FUNC[i]}, QWORD [rsp]')
+                    emitLine(f'\tcall {expr.text}')
+                    emitLine(f'\tpush rax') # function return value
             elif expr.typ == 'list_expression':
                 exprs = expr.items
                 # print(exprs)
@@ -338,62 +377,62 @@ class Emitter:
                 # there will be len(exprs) vars on stack after above
                 # the following allocates len(exprs) vars and then push the pointer to the first element on top of the stack
                 for i in range(len(exprs)):
-                    self.emitLine('\tpop rax')
+                    emitLine('\tpop rax')
                     if i == (len(exprs) - 1):
-                        self.emitLine(f'\tmov rbx, rbp')
-                        self.emitLine(f'\tsub rbx, {self.stack}')
-                        self.emitLine(f'\tpush rbx')
+                        emitLine(f'\tmov rbx, rbp')
+                        emitLine(f'\tsub rbx, {self.stack}')
+                        emitLine(f'\tpush rbx')
                     self.allocStack(self.stack, 8)
             elif expr.typ == 'assignment_expression':
-                self.emitLine(f'\t; -- assignment_expression --')
+                emitLine(f'\t; -- assignment_expression --')
                 left, right = expr.left, expr.right
                 left, right = self.getExprValue(left), self.getExprValue(right)
                 self.emitExpr(right)
                 # result will be at top of stack
                 if len(left) == 1:
                     if left[0].typ == 'ident':
-                        self.emitLine(f'\tpop rax')
+                        emitLine(f'\tpop rax')
                         varName = left[0].text
-                        if varName not in self.stackTable:
+                        if varName not in self.stackTable[-1]:
                             print(f'{varName} is not in stack table, {expr=}')
                             assert False, 'Variable cross-reference should be handle in parsing stage'
                         else:
-                            self.allocStack(self.stackTable[varName], 0)
+                            self.allocStack(self.stackTable[-1][varName], 0)
                     elif left[0].typ == 'subscript_expression':
                         value, child = self.getExprValue(left[0].value), left[0].child
                         assert child.typ == 'ident', "Subcript other than identifiers are not implemented"
                         varName = child.text
-                        assert varName in self.stackTable, "Variable cross-reference should be handle in parsing stage"
+                        assert varName in self.stackTable[-1], "Variable cross-reference should be handle in parsing stage"
                         self.emitExpr(value)
-                        self.emitLine(f'\tpop rax') # subscript value
-                        self.emitLine(f'\tlea rdx, [rbp-{self.stackTable[varName] - 8}+rax*8]') # rdx contains address now
-                        self.emitLine(f'\tpop rbx') # rhs
-                        self.emitLine(f'\tmov QWORD [rdx], rbx')
-                        self.emitLine(f'\tpush rbx')
+                        emitLine(f'\tpop rax') # subscript value
+                        emitLine(f'\tlea rdx, [rbp-{self.stackTable[-1][varName] - 8}+rax*8]') # rdx contains address now
+                        emitLine(f'\tpop rbx') # rhs
+                        emitLine(f'\tmov QWORD [rdx], rbx')
+                        emitLine(f'\tpush rbx')
                         # print(child)
                         # raise NotImplementedError('In subscript_expression')
                 elif left[-1].typ == 'pointer':
                     self.emitExpr(left[:-1]) # omit pointer (deref) operation
                     # result (address) will be on the top of stack
-                    self.emitLine('\tpop rdx') # contains the address
-                    self.emitLine('\tpop rax')
-                    self.emitLine('\tmov QWORD [rdx], rax')
-                    self.emitLine('\tpush rax')
+                    emitLine('\tpop rdx') # contains the address
+                    emitLine('\tpop rax')
+                    emitLine('\tmov QWORD [rdx], rax')
+                    emitLine('\tpush rax')
                 else:
                     raise NotImplementedError('assignment_expression in emitExpr')
             elif expr.typ == 'subscript_expression':
                 value, child = self.getExprValue(expr.value), expr.child
                 assert child.typ == 'ident', "Subcript other than identifiers are not implemented"
                 varName = child.text
-                assert varName in self.stackTable, "Variable cross-reference should be handle in parsing stage"
+                assert varName in self.stackTable[-1], "Variable cross-reference should be handle in parsing stage"
                 self.emitExpr(value)
-                self.emitLine(f'\tpop rax') # subscript value
-                self.emitLine(f'\tlea rdx, [rbp-{self.stackTable[varName] - 8}+rax*8]') # rdx contains address now
-                self.emitLine(f'\tpush QWORD [rdx]')
+                emitLine(f'\tpop rax') # subscript value
+                emitLine(f'\tlea rdx, [rbp-{self.stackTable[-1][varName] - 8}+rax*8]') # rdx contains address now
+                emitLine(f'\tpush QWORD [rdx]')
                 # raise NotImplementedError('subscript_expression in emitExpr')
             elif expr.typ == 'pointer':
-                self.emitLine('\tpop rax')
-                self.emitLine('\tpush QWORD [rax]')
+                emitLine('\tpop rax')
+                emitLine('\tpush QWORD [rax]')
             else:
                 raise NotImplementedError(f'Operation {expr} is not implemented')
 
@@ -407,17 +446,21 @@ class Emitter:
     def addrStackPeek(self, key: str):
         return self.labelTable[key]['stack'][-1]
 
-    def allocVariable(self, varName: str, size: int):
-        ''' Allocate variable in rax on the stack '''
-        if varName not in self.stackTable:
-            self.stackTable[varName] = self.stack
-            self.allocStack(self.stack, size)
+    def allocVariable(self, varName: str, size: int, reg='rax', inFunc=False):
+        ''' Allocate variable in register (default rax) on the stack '''
+        if varName not in self.stackTable[-1]:
+            self.stackTable[-1][varName] = self.stack
+            self.allocStack(self.stack, size, reg, inFunc)
         else:
-            self.allocStack(self.stackTable[varName], 0)
+            self.allocStack(self.stackTable[-1][varName], 0, inFunc=inFunc)
 
-    def allocStack(self, pos: int, size: int):
-        self.emitLine(f'\tmov QWORD [rbp - {pos}], rax')
+    def allocStack(self, pos: int, size: int, reg='rax', inFunc=False):
+        emitLine = self.emitLine if not inFunc else self.emitFuncLine
+        emitLine(f'\tmov QWORD [rbp - {pos}], {reg}')
         self.stack += size
+
+    def emitFuncLine(self, code):
+        self.funcCode += code + '\n'
 
     @staticmethod
     def evalExpr(expr: ExpressionNode | BinaryNode) -> int:
@@ -458,21 +501,25 @@ class Emitter:
                 # print(ret)
                 return
             elif expr.typ == 'unary_operator':  # unary operation
-                get(expr.arg)
+                get(expr.child)
                 if expr.text == '-':
                     if ret[-1].typ == 'number':
-                        ret[-1].text = f'-{ret[-1]['number']['text']}'
+                        ret[-1].text = f'-{ret[-1].text}'
                     else:
                         ret.append(ExpressionNode('unary_operator'))
                         # ret.append({'unary_operator': expr['text']})
             elif expr.typ == 'call_expression': # call expression
                 args = expr.args
                 text = expr.text
+                # TODO: they are doing the same shit, fix this
                 if text == 'syscall':
                     assert len(args) > 0 and len(args) <= 7, f"Syscall statement expects 1 to 7 args, found {len(args)}"
                     for arg in args: get(arg)
                     ret.append(expr)
                 elif text == 'write':
+                    for arg in args: get(arg)
+                    ret.append(expr)
+                else:
                     for arg in args: get(arg)
                     ret.append(expr)
             elif expr.typ == 'assignment_expression':

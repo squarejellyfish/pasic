@@ -261,10 +261,11 @@ class Keywords(Enum):
     ELSE = auto()
     RETURN = auto()
     DEFINE = auto()
+    FUNC = auto()
 
 
 assert len(
-    Keywords) == 13, "Exhaustive handling of keywords table, forgot to add support for a keyword?"
+    Keywords) == 14, "Exhaustive handling of keywords table, forgot to add support for a keyword?"
 KEYWORDS_TABLE = {
     'if': Keywords.IF,
     'label': Keywords.LABEL,
@@ -279,6 +280,7 @@ KEYWORDS_TABLE = {
     'else': Keywords.ELSE,
     'return': Keywords.RETURN,
     'define': Keywords.DEFINE,
+    'func': Keywords.FUNC,
 }
 
 
