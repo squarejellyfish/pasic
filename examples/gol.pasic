@@ -1,21 +1,35 @@
-// 30 seg faults cause of stack limit?
-#define ROW 20
-#define COL 20
+// Conway's Game of Life written in pasic programming language
+// Automatically determines board's width and height from terminal size
+// Might be limited by kernel stack limit
 
-let board[ROW * COL * 2] = [0]
+#define LIMIT 500 * 100 * 2 // limit of board size
+
+func exit(num)
+    syscall(60, num)
+end
+
+// getting the termial size by ioctl syscall
+let winsize = mem + 40
+syscall(16, 1, 21523, winsize)
+let ROW = ((*winsize) & 65535) - 2
+let COL = ((*winsize >> 16) & 65535) - 2
+
+if ROW * COL * 2 > LIMIT then
+    print("board size exceeds limit, make the terminal smaller bro\n")
+    exit(69)
+end
+
+let board[LIMIT] = [0]
 let random = mem + 32
 
 let i = 0
 while i < (ROW * COL * 2) do
     syscall(318, random, 8, 0)
-    if (*random) % 2 == 1 then
-        board[i] = 1
-    else
-        board[i] = 0
-    end
+    board[i] = *random % 2
     i = i + 1
 end
 
+// setting for time.sleep
 let timespec = mem
 *timespec = 0
 *(timespec + 8) = 100000000
@@ -26,13 +40,14 @@ let elements = ROW * COL
 let iter = 0
 print("\033[H\033[2J")
 while 1 do
+    print("\033[H")
     let curr = iter % 2
     let i = 0
     syscall(35, timespec, rem)
     while i < ROW do
         let j = 0
         while j < COL do
-            let index = curr*elements + ROW * i + j
+            let index = curr*elements + COL * i + j
             if board[index] == 1 then
                 print("#")
             else
@@ -46,7 +61,7 @@ while 1 do
                 while dj <= 1 do
                     let neighbor_i = i + di
                     let neighbor_j = j + dj
-                    let neighbor_index = curr*elements + ROW * neighbor_i + neighbor_j
+                    let neighbor_index = curr*elements + COL * neighbor_i + neighbor_j
                     if (di == 0) & (dj == 0) then
                     else if (neighbor_i >= 0) & (neighbor_i < ROW) & (neighbor_j >= 0) & (neighbor_j < COL) & (board[neighbor_index] == 1) then
                         neighbors = neighbors + 1 
@@ -59,11 +74,11 @@ while 1 do
             let other = 1
             if curr == 1 then other = 0 end
             if (neighbors < 2) | (neighbors > 3) then
-                board[other*elements + ROW * i + j] = 0
+                board[other*elements + COL * i + j] = 0
             else if (board[index] == 0) & (neighbors == 3) then
-                board[other*elements + ROW * i + j] = 1
+                board[other*elements + COL * i + j] = 1
             else
-                board[other*elements + ROW * i + j] = board[index]
+                board[other*elements + COL * i + j] = board[index]
             end
 
             j = j + 1
@@ -72,6 +87,5 @@ while 1 do
 
         i = i + 1
     end
-    print("\033[H")
     iter = (iter + 1) % 2
 end

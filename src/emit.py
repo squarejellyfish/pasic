@@ -101,15 +101,17 @@ class Emitter:
                 emitLine(f'\t; -- let_statement --')
                 left, right_expr = statement.left, statement.right
                 right_expr = self.getExprValue(right_expr)
-                self.emitExpr(right_expr, inFunc) # pointer to the list will be on top of stack
-                emitLine(f'\tpop rax')
-                varName, size = left.text, 8
-                if statement.args: # means that this is list init statement
+                if statement.args: # is list init statement
                     arg = statement.args[0]
-                    arg = Emitter.evalExpr(arg)
-                    size = arg * 8
+                    arg = Emitter.evalExpr(arg) # length of list to allocate
+                    self.stack += (arg - len(right_expr[0].items)) * 8 # allocates elements on stack if list did not explicitly define
+                    self.emitExpr(right_expr, inFunc) # pointer to the list will be on top of stack
+                    emitLine(f'\tpop rax')
+                    varName, size = left.text, 8
                     self.allocVariable(varName, size, inFunc=inFunc)
                 else:
+                    self.emitExpr(right_expr, inFunc)
+                    emitLine(f'\tpop rax')
                     varName, size = left.text, 8
                     self.allocVariable(varName, size, inFunc=inFunc)
             elif statement.typ == 'label_statement':
@@ -376,13 +378,14 @@ class Emitter:
                     self.emitExpr(expr)
                 # there will be len(exprs) vars on stack after above
                 # the following allocates len(exprs) vars and then push the pointer to the first element on top of the stack
+                pfirst = self.stack
                 for i in range(len(exprs)):
                     emitLine('\tpop rax')
-                    if i == (len(exprs) - 1):
-                        emitLine(f'\tmov rbx, rbp')
-                        emitLine(f'\tsub rbx, {self.stack}')
-                        emitLine(f'\tpush rbx')
+                    if i == len(exprs) - 1:
+                        pfirst = self.stack
                     self.allocStack(self.stack, 8)
+                emitLine(f'\tlea rbx, [rbp - {pfirst}]')
+                emitLine(f'\tpush rbx')
             elif expr.typ == 'assignment_expression':
                 emitLine(f'\t; -- assignment_expression --')
                 left, right = expr.left, expr.right

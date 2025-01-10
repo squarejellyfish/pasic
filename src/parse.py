@@ -6,7 +6,7 @@ from dataclasses import dataclass
 # Parser object keeps track of current token and checks if the code matches the grammar.
 # TODO: add support for command line args
 # TODO: type system
-# TODO: function calls
+# TODO: include files
 
 EOF = Token('\0', Symbols.EOF)
 

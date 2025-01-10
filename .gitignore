@@ -1,5 +1,4 @@
 out*
-foo*
 .env
 parse.json
 parse.xml
