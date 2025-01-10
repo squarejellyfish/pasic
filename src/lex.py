@@ -2,6 +2,7 @@ from enum import Enum, auto
 import sys
 
 # TODO: support for macros, kind of like the c style macros: #define (macros) (something)
+# TODO: lexer does not open file right now (we need to open and give it to lexer), which doesn't make sense
 
 
 def eprint(*args, **kwargs):
@@ -262,10 +263,10 @@ class Keywords(Enum):
     RETURN = auto()
     DEFINE = auto()
     FUNC = auto()
-
+    INCLUDE = auto()
 
 assert len(
-    Keywords) == 14, "Exhaustive handling of keywords table, forgot to add support for a keyword?"
+    Keywords) == 15, "Exhaustive handling of keywords table, forgot to add support for a keyword?"
 KEYWORDS_TABLE = {
     'if': Keywords.IF,
     'label': Keywords.LABEL,
@@ -281,6 +282,7 @@ KEYWORDS_TABLE = {
     'return': Keywords.RETURN,
     'define': Keywords.DEFINE,
     'func': Keywords.FUNC,
+    'include': Keywords.INCLUDE,
 }
 
 

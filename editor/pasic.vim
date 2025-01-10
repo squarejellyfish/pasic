@@ -5,16 +5,8 @@ if exists("b:current_syntax")
   finish
 endif
 "
-"	Be sure to turn on the "case ignore" since current versions
-"	of pasic support both upper as well as lowercase
-"	letters. - MEM 10/1/2006
 "
-syn case ignore
-"
-"	This list of keywords is taken directly from the pasic
-"	user's guide as presented by the pasic online site.
-"
-syn keyword     pasicKeywords   if then else while do end goto return let func
+syn keyword     pasicKeywords   if then else while do end goto return let func include
 
 syn keyword	pasicFunctions		print syscall write
 
@@ -31,8 +23,9 @@ syn region	pasicPreProcDefine	start="^#define" skip="\\$" end="$" end="//"me=s-1
 "	types of identifiers like functions, basic commands and
 "	such. MEM 9/9/2006
 "
-syn match	pasicIdentifier		"\<[a-zA-Z_][a-zA-Z0-9_]*\>"
-syn match	pasicGenericFunction	"\<[a-zA-Z_][a-zA-Z0-9_]*\>\s*("me=e-1,he=e-1
+syn match	pasicIdentifier		"\<[a-z_][a-zA-Z0-9_]*\>"
+syn match	pasicGenericFunction	"\<[a-z_][a-zA-Z0-9_]*\>\s*("me=e-1,he=e-1
+syn match	pasicConstant	        "\<[A-Z][A-Z0-9_]*\>"
 "
 "	Function list
 "
@@ -101,18 +94,22 @@ syn region	pasicComment	start="//" end="$" contains=pasicSpecial,pasicTodo
 " For version 5.8 and later: only when an item doesn't have highlighting yet
 highlight default link pasicKeywords		Keyword
 highlight default link pasicFunctions		Function
-
-highlight default link pasicPreProcDefine	PreProc
+highlight default link pasicGenericFunction	Function
 
 highlight default link pasicString		String
 highlight default link pasicComment		Comment
+highlight default link pasicIdentifier		Identifier
 
+highlight default link pasicPreProcDefine	PreProc
+highlight default link pasicConstant            PreProc
+"
 highlight default link pasicLabel		Label
 highlight default link pasicMathOperator	Operator
 highlight default link pasicInteger		Number
 highlight default link pasicHex		Number
 highlight default link pasicType		Type
 highlight default link pasicTodo		Todo
+
 
 let b:current_syntax = "pasic"
 

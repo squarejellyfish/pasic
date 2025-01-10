@@ -24,11 +24,6 @@ class Parser:
         self.funcSymStack: list[list] = [[]]
         self.ast: dict = {}
 
-        self.curToken: Token = EOF
-        self.peekToken: Token = EOF
-        self.nextToken()
-        self.nextToken()  # Call twice ot init curToken and peekToken
-
     # Return true if the current token matches.
     def checkToken(self, kind):
         return kind == self.curToken.kind
@@ -42,6 +37,11 @@ class Parser:
         if not self.checkToken(kind):
             self.abort(f"Expected {kind.name}, got {repr(self.curToken.text)}")
         self.nextToken()
+
+    def expect(self, kind):
+        '''Try to match the token, abort if does not match. Does not advance'''
+        if not self.checkToken(kind):
+            self.abort(f"Expected {kind.name}, got {repr(self.curToken.text)}")
 
     # Advances the current token.
     def nextToken(self):
@@ -60,6 +60,29 @@ class Parser:
 
     def isShiftOp(self):
         return self.checkToken(Symbols.GTGT) or self.checkToken(Symbols.LTLT)
+
+    def init(self):
+        self.ip = 0
+        self.curToken = EOF
+        self.peekToken = EOF
+        self.nextToken()
+        self.nextToken()  # Call twice ot init curToken and peekToken
+
+    def expandIncludes(self):
+        ip = 0
+        while ip < len(self.tokens) and self.tokens[ip].kind is not Symbols.EOF:
+            token = self.tokens[ip]
+            if token.kind is Keywords.INCLUDE:
+                start = ip
+                next_tok = self.tokens[ip + 1]
+                filename = next_tok.text
+                end = ip + 2
+                with open(filename, 'r') as file:
+                    lexer = Lexer(file.read(), filename)
+                tokens = lexer.lexfile()
+                self.tokens[start:end] = tokens[:-1] # exclude EOF
+                ip += 1
+            ip += 1
 
     def expandMacros(self):
         keep = []
@@ -103,15 +126,13 @@ class Parser:
         #     print(token)
         self.tokens = keep
 
-        self.ip = 0
-        self.curToken = EOF
-        self.peekToken = EOF
-        self.nextToken()
-        self.nextToken()  # Call twice ot init curToken and peekToken
+        self.init()
 
     # program ::= statements
     def program(self):
 
+        self.expandIncludes()
+        self.init()
         self.expandMacros()
         # Strip newlines at start
         while self.checkToken(Symbols.NEWLINE):
@@ -139,7 +160,7 @@ class Parser:
         # Check first token to see which statement
 
         ret = None
-        assert len(Symbols) + len(Keywords) == 43, "Exhaustive handling of operation, notice that not all symbols need to be handled, only those who need a statement"
+        assert len(Symbols) + len(Keywords) == 44, "Exhaustive handling of operation, notice that not all symbols need to be handled, only those who need a statement"
         # PRINT expression
         if self.checkToken(Keywords.PRINT):
             self.nextToken()
@@ -271,6 +292,12 @@ class Parser:
                 self.nextToken()
                 ret = StatementNode('return_statement',
                                     value=self.expression())
+        # 'include' string
+        elif self.checkToken(Keywords.INCLUDE):
+            print('in include block:')
+            for i, token in enumerate(self.tokens):
+                print(i, token)
+            raise Exception("include block is not reachable")
         else:
             ret = self.expression()
             # self.abort(f"Invalid statement at {

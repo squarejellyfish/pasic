@@ -72,8 +72,9 @@ class Emitter:
             outputFile.write(self.header + self.codeheader + self.code + self.funcCode + self.ender)
 
     def emitStatement(self, statement: Union[StatementNode, ExpressionNode, BinaryNode], inFunc=False):
-        assert len(Symbols) + len(Keywords) == 43, "Exhaustive handling of operation, notice that not all symbols need to be handled here, only those is a statement"
+        assert len(Symbols) + len(Keywords) == 44, "Exhaustive handling of operation, notice that not all symbols need to be handled here, only those is a statement"
         emitLine = self.emitLine if not inFunc else self.emitFuncLine
+        # print(statement)
         if isinstance(statement, StatementNode):
             if statement.typ == 'print_statement':
                 # SYS_WRITE syscall
@@ -217,6 +218,10 @@ class Emitter:
                 self.emitExpr(exprs, inFunc)
                 # result will be at top of stack
                 emitLine('\tpop rax')
+            elif statement.typ == 'include_statement':
+                pass
+            else:
+                raise NotImplementedError(f'Statment {statement.typ} is not implemented')
         else:
             expr = self.getExprValue(statement)
             self.emitExpr(expr, inFunc)
