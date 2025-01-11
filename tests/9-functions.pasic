@@ -1,4 +1,6 @@
 func add(a, b)
+    print(a)
+    print(b)
     let ret = a + b
     print("ret is ")
     print(ret)

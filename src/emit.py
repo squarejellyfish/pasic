@@ -205,7 +205,7 @@ class Emitter:
                 original = self.stack
                 self.stack = 8
                 self.inFunc = True
-                print(f'function {func_name}, {args=}')
+                self.stackTable.append(self.stackTable[-1].copy())
                 for i, arg in enumerate(args):
                     self.allocVariable(arg.text, 8, reg=CONVENTION_FUNC[i])
                 for stmt in body:
@@ -213,6 +213,7 @@ class Emitter:
                 # move return value to rax before returning
                 self.stack = original
                 self.inFunc = False
+                self.stackTable.pop()
                 emitLine(f'\tleave')
                 emitLine(f'\tret')
                 # raise NotImplementedError('func_declaration')
@@ -239,7 +240,7 @@ class Emitter:
             if expr.typ == 'number':
                 emitLine(f'\tpush {expr.text}')
             elif expr.typ == 'ident':
-                if expr.text == 'mem':
+                if expr.text == '__mem__':
                     emitLine(f'\tpush mem')
                     # raise NotImplementedError('mem keyword')
                 else:
@@ -355,26 +356,10 @@ class Emitter:
                         emitLine(f'\tpop {CONVENTION_SYSCALL[i]}')
                     emitLine('\tsyscall')
                     emitLine('\tpush rax') # push result on to the stack
-                elif name == 'write':
-                    # SYS_WRITE but only write 1 char
-                    emitLine(f'\t; -- write builtin --')
-                    args = expr.args
-                    left, right = self.getExprValue(args[0]), self.getExprValue(args[1])
-                    self.emitExpr(right)
-                    self.emitExpr(left)
-                    # if left[0].typ == 'ident':
-                    #     emitLine(f'\tpop rsi')
-                    # else:
-                    emitLine(f'\tmov rsi, rsp') # rsi takes address
-                    emitLine(f'\tadd rsp, 8')
-                    emitLine(f'\tpop rdx') # pop arg length
-                    emitLine(f'\tmov rax, 1')  # SYS_WRITE = 1
-                    emitLine(f'\tmov rdi, 1')  # stdout = 1
-                    emitLine(f'\tsyscall')
                 else:
                     emitLine(f'\t ; -- call {expr.text} --')
                     args = expr.args
-                    for i, arg in enumerate(reversed(args)):
+                    for i, arg in enumerate(args):
                         arg = self.getExprValue(arg)
                         self.emitExpr(arg)
                         emitLine(f'\tmov {CONVENTION_FUNC[i]}, QWORD [rsp]')
@@ -406,7 +391,6 @@ class Emitter:
                         emitLine(f'\tpop rax')
                         varName = left[0].text
                         if varName not in self.stackTable[-1]:
-                            print(f'{varName} is not in stack table, {expr=}')
                             assert False, 'Variable cross-reference should be handle in parsing stage'
                         else:
                             self.allocStack(self.stackTable[-1][varName], 0)
@@ -461,12 +445,12 @@ class Emitter:
     def allocVariable(self, varName: str, size: int, reg='rax'):
         ''' Allocate variable in register (default rax) on the stack '''
         emitLine = self.emitLine if not self.inFunc else self.emitFuncLine
-        emitLine(f'\t; -- alloc variable {varName}')
+        emitLine(f'\t; -- alloc variable {varName} in {reg}')
         if varName not in self.stackTable[-1]:
             self.stackTable[-1][varName] = self.stack
             self.allocStack(self.stack, size, reg)
         else:
-            self.allocStack(self.stackTable[-1][varName], 0)
+            self.allocStack(self.stackTable[-1][varName], 0, reg)
 
     def allocStack(self, pos: int, size: int, reg='rax'):
         emitLine = self.emitLine if not self.inFunc else self.emitFuncLine
@@ -528,9 +512,6 @@ class Emitter:
                 # TODO: they are doing the same shit, fix this
                 if text == 'syscall':
                     assert len(args) > 0 and len(args) <= 7, f"Syscall statement expects 1 to 7 args, found {len(args)}"
-                    for arg in args: get(arg)
-                    ret.append(expr)
-                elif text == 'write':
                     for arg in args: get(arg)
                     ret.append(expr)
                 else:

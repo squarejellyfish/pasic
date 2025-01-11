@@ -1,24 +1,36 @@
+include "std/std.pasic"
+
 #define NULL 0
 #define O_RDONLY 0
 
 #define PROT_READ 1
 #define MAP_PRIVATE 2
 
-let fd = syscall(2, "tests/cat.pasic", O_RDONLY, 0)
-let stat = mem
+let filename = "examples/cat.pasic"
+
+let fd = syscall(2, filename, O_RDONLY, 0)
+if fd < 0 then
+    print("Cannot open file: ")
+    write(filename, strlen(filename))
+    print("\n")
+    exit(1)   
+end
+
+let stat = malloc(128)
 syscall(5, fd, stat)
 
 let fsize = *(stat + 48)
 let file = syscall(9, NULL, fsize, PROT_READ, MAP_PRIVATE, fd, 0)
 
 let i = 0
+let charbuf = malloc(1)
 while i < fsize do
     let value = *(file + i)
     let j = 0
     while j < 8 do 
-        let char = (value >> (j*8)) & 255
+        *charbuf = (value >> (j*8)) & 255
         // print(char)
-        write(char, 1)
+        write(charbuf, 1)
         j = j + 1
     end
     i = i + 8

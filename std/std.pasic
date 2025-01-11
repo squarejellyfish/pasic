@@ -389,9 +389,35 @@ func exit(num)
     syscall(SYS_EXIT, num)
 end
 
+func read(fd, buf, count)
+    syscall(SYS_READ, fd, buf, count)
+end
+
+func write(string, len)
+    // wrapper for write syscall
+    syscall(SYS_WRITE, 1, string, len)
+end
+
 func dump_(n)
     while n > 0 do
         print(n % 10)
         n = n / 10
     end
 end
+
+let __offset__ = 0
+func malloc(size)
+    // allocates size bytes in bss segment
+    let ret = __mem__ + __offset__
+    __offset__ = __offset__ + size
+    return ret
+end
+
+func strlen(string)
+    let ret = 0
+    while *(string + ret) & 255 != 0 do
+        ret = ret + 1
+    end
+    return ret
+end
+

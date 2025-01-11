@@ -52,7 +52,7 @@ class Parser:
     def abort(self, message):
         filename, line, col = self.curToken.pos
         eprint(f"{filename}:{line}:{col} Error: " + message)
-        sys.exit(69)
+        sys.exit(1)
 
     def isComparisonOp(self):
         return self.checkToken(Symbols.GT) or self.checkToken(Symbols.GTEQ) or self.checkToken(Symbols.LT) or self.checkToken(Symbols.LTEQ) or self.checkToken(Symbols.EQEQ) or self.checkToken(Symbols.NOTEQ)
@@ -426,7 +426,7 @@ class Parser:
     #     | primary '[' slices ']'
     #     | atom
 
-    # postfix_expression ::= ('syscall' | 'write' | 'print') ['(' [expression (',' expression)*] ')']
+    # postfix_expression ::= pointer ['(' [expression (',' expression)*] ')']
     #                      | pointer '[' expression ']'
     #                      | pointer
     def postfix_expression(self):

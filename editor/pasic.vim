@@ -8,9 +8,9 @@ endif
 "
 syn keyword     pasicKeywords   if then else while do end goto return let func include
 
-syn keyword	pasicFunctions		print syscall write
+syn keyword	pasicFunctions		print syscall
 
-syn keyword     pasicType    mem
+syn keyword     pasicType    __mem__
 
 " Preprocessor
 syn region	pasicPreProcDefine	start="^#define" skip="\\$" end="$" end="//"me=s-1 contains=pasicNumber,pasicComment

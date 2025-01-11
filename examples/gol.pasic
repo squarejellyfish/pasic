@@ -1,15 +1,12 @@
 // Conway's Game of Life written in pasic programming language
 // Automatically determines board's width and height from terminal size
 // Might be limited by kernel stack limit
+include "std/std.pasic"
 
 #define LIMIT 500 * 100 * 2 // limit of board size
 
-func exit(num)
-    syscall(60, num)
-end
-
 // getting the termial size by ioctl syscall
-let winsize = mem + 40
+let winsize = malloc(16)
 syscall(16, 1, 21523, winsize)
 let ROW = ((*winsize) & 65535) - 2
 let COL = ((*winsize >> 16) & 65535) - 2
@@ -20,7 +17,7 @@ if ROW * COL * 2 > LIMIT then
 end
 
 let board[LIMIT] = [0]
-let random = mem + 32
+let random = malloc(8)
 
 let i = 0
 while i < (ROW * COL * 2) do
@@ -30,10 +27,10 @@ while i < (ROW * COL * 2) do
 end
 
 // setting for time.sleep
-let timespec = mem
+let timespec = malloc(16)
 *timespec = 0
 *(timespec + 8) = 100000000
-let rem = mem + 16
+let rem = malloc(16)
 *rem = 0
 
 let elements = ROW * COL

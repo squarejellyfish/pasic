@@ -156,7 +156,7 @@ class Lexer:
             text = self.source[startPos:self.curPos + 1]
             token = Token(text, Symbols.NUMBER,
                           (self.sourceName, self.curLine, self.linePos))
-        elif self.curChar.isalpha():
+        elif self.curChar.isalpha() or self.curChar == '_':
             startPos = self.curPos
             while self.peek().isalpha() or self.peek().isdigit() or self.peek() in ['_', '-']:
                 self.nextChar()
@@ -286,15 +286,13 @@ KEYWORDS_TABLE = {
 
 class Builtins(Enum):
     SYSCALL = auto()
-    WRITE = auto()
     MEM = auto()
 
 
-assert len(Builtins) == 3, "Exhaustive handling of builtins table"
+assert len(Builtins) == 2, "Exhaustive handling of builtins table"
 BUILTINS_TABLE = {
     'syscall': Builtins.SYSCALL,
-    'write': Builtins.WRITE,
-    'mem': Builtins.MEM,
+    '__mem__': Builtins.MEM,
 }
 
 
