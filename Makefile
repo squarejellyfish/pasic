@@ -1,6 +1,6 @@
 TARGET = main
 SRC = ./src/lex.py ./src/emit.py ./src/parse.py
-EX_FILE = main.pasic
+EX_FILE = main.pasic std/std.pasic
 
 $(TARGET): pasic.py $(SRC) $(EX_FILE)
 	python3 pasic.py $(EX_FILE)
@@ -13,6 +13,9 @@ asm: main.asm
 rule110: rule110.c
 	gcc rule110.c -o rule110
 	./rule110
+
+test: tests test.py
+	python3 test.py tests
 
 .PHONY: clean all
 clean:

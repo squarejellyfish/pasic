@@ -8,6 +8,7 @@ Node = BinaryNode | ExpressionNode | StatementNode
 
 # TODO: list re-assignment will reallocate new list, old list is memory leaked (this is actually fine?)
 # TODO: list init with [] will cause weird behaviors
+# TODO: current system pushes expression result on top of the stack, which is not efficient. Change it to move to register?
 
 CONVENTION_SYSCALL = ['rax', 'rdi', 'rsi', 'rdx', 'r10', 'r8', 'r9']
 CONVENTION_FUNC = ['rdi', 'rsi', 'rdx', 'rcx', 'r8', 'r9']
@@ -20,6 +21,7 @@ class Emitter:
         self.codeheader = ""
         self.code = ""
         self.funcCode = ""
+        self.inFunc = False
         self.staticVarCount = 0
         self.stackTable = [dict()]  # position of var in stack of current scope
         self.stack = 8  # reserve 8 bytes for rbp himself
@@ -71,10 +73,9 @@ class Emitter:
         with open(self.fullPath, 'w') as outputFile:
             outputFile.write(self.header + self.codeheader + self.code + self.funcCode + self.ender)
 
-    def emitStatement(self, statement: Union[StatementNode, ExpressionNode, BinaryNode], inFunc=False):
+    def emitStatement(self, statement: Union[StatementNode, ExpressionNode, BinaryNode]):
         assert len(Symbols) + len(Keywords) == 44, "Exhaustive handling of operation, notice that not all symbols need to be handled here, only those is a statement"
-        emitLine = self.emitLine if not inFunc else self.emitFuncLine
-        # print(statement)
+        emitLine = self.emitLine if not self.inFunc else self.emitFuncLine
         if isinstance(statement, StatementNode):
             if statement.typ == 'print_statement':
                 # SYS_WRITE syscall
@@ -94,7 +95,7 @@ class Emitter:
                     emitLine(f'\tsyscall')
                     self.staticVarCount += 1
                 else: # is a number, we call builtin function dump
-                    self.emitExpr(expr_postfix, inFunc)
+                    self.emitExpr(expr_postfix)
                     # result will be at top of stack
                     emitLine(f'\tpop rdi')
                     emitLine(f'\tcall dump')
@@ -106,15 +107,15 @@ class Emitter:
                     arg = statement.args[0]
                     arg = Emitter.evalExpr(arg) # length of list to allocate
                     self.stack += (arg - len(right_expr[0].items)) * 8 # allocates elements on stack if list did not explicitly define
-                    self.emitExpr(right_expr, inFunc) # pointer to the list will be on top of stack
+                    self.emitExpr(right_expr) # pointer to the list will be on top of stack
                     emitLine(f'\tpop rax')
                     varName, size = left.text, 8
-                    self.allocVariable(varName, size, inFunc=inFunc)
+                    self.allocVariable(varName, size)
                 else:
-                    self.emitExpr(right_expr, inFunc)
+                    self.emitExpr(right_expr)
                     emitLine(f'\tpop rax')
                     varName, size = left.text, 8
-                    self.allocVariable(varName, size, inFunc=inFunc)
+                    self.allocVariable(varName, size)
             elif statement.typ == 'label_statement':
                 emitLine(f'\t; -- label_statement --')
                 text = statement['label_statement']['text']
@@ -127,7 +128,7 @@ class Emitter:
                 emitLine(f'\t; -- if_statement')
                 condition, body = statement.condition, statement.body
                 condition = self.getExprValue(condition)
-                self.emitExpr(condition, inFunc)
+                self.emitExpr(condition)
                 # result on top of stack
                 emitLine(f'\tpop rax')
                 emitLine(f'\ttest rax, rax')
@@ -156,7 +157,7 @@ class Emitter:
                 emitLine(f'IF_{addr}:')
                 condition, body = statement.condition, statement.body
                 condition = self.getExprValue(condition)
-                self.emitExpr(condition, inFunc)
+                self.emitExpr(condition)
                 # result on top of stack
                 emitLine(f'\tpop rax')
                 emitLine(f'\ttest rax, rax')
@@ -181,7 +182,7 @@ class Emitter:
                 self.addrStackPush('while')
                 condition, body = statement.condition, statement.body
                 condition = self.getExprValue(condition)
-                self.emitExpr(condition, inFunc)
+                self.emitExpr(condition)
                 # result on top of stack
                 emitLine(f'\tpop rax')
                 emitLine(f'\ttest rax, rax')
@@ -203,19 +204,22 @@ class Emitter:
                 emitLine(f'\tsub rsp, 1024') # TODO: function local variable stack padding
                 original = self.stack
                 self.stack = 8
+                self.inFunc = True
+                print(f'function {func_name}, {args=}')
                 for i, arg in enumerate(args):
-                    self.allocVariable(arg.text, 8, CONVENTION_FUNC[i], inFunc=True)
+                    self.allocVariable(arg.text, 8, reg=CONVENTION_FUNC[i])
                 for stmt in body:
-                    self.emitStatement(stmt, inFunc=True)
+                    self.emitStatement(stmt)
                 # move return value to rax before returning
                 self.stack = original
+                self.inFunc = False
                 emitLine(f'\tleave')
                 emitLine(f'\tret')
                 # raise NotImplementedError('func_declaration')
             elif statement.typ == 'return_statement':
                 emitLine('\t; -- return --')
                 exprs = self.getExprValue(statement.value)
-                self.emitExpr(exprs, inFunc)
+                self.emitExpr(exprs)
                 # result will be at top of stack
                 emitLine('\tpop rax')
             elif statement.typ == 'include_statement':
@@ -224,13 +228,13 @@ class Emitter:
                 raise NotImplementedError(f'Statment {statement.typ} is not implemented')
         else:
             expr = self.getExprValue(statement)
-            self.emitExpr(expr, inFunc)
+            self.emitExpr(expr)
 
-    def emitExpr(self, exprs: list, inFunc=False):
+    def emitExpr(self, exprs: list):
         '''
         Expression result will be at top of stack
         '''
-        emitLine = self.emitLine if not inFunc else self.emitFuncLine
+        emitLine = self.emitLine if not self.inFunc else self.emitFuncLine
         for expr in exprs:
             if expr.typ == 'number':
                 emitLine(f'\tpush {expr.text}')
@@ -372,7 +376,7 @@ class Emitter:
                     args = expr.args
                     for i, arg in enumerate(reversed(args)):
                         arg = self.getExprValue(arg)
-                        self.emitExpr(arg, inFunc)
+                        self.emitExpr(arg)
                         emitLine(f'\tmov {CONVENTION_FUNC[i]}, QWORD [rsp]')
                     emitLine(f'\tcall {expr.text}')
                     emitLine(f'\tpush rax') # function return value
@@ -454,16 +458,18 @@ class Emitter:
     def addrStackPeek(self, key: str):
         return self.labelTable[key]['stack'][-1]
 
-    def allocVariable(self, varName: str, size: int, reg='rax', inFunc=False):
+    def allocVariable(self, varName: str, size: int, reg='rax'):
         ''' Allocate variable in register (default rax) on the stack '''
+        emitLine = self.emitLine if not self.inFunc else self.emitFuncLine
+        emitLine(f'\t; -- alloc variable {varName}')
         if varName not in self.stackTable[-1]:
             self.stackTable[-1][varName] = self.stack
-            self.allocStack(self.stack, size, reg, inFunc)
+            self.allocStack(self.stack, size, reg)
         else:
-            self.allocStack(self.stackTable[-1][varName], 0, inFunc=inFunc)
+            self.allocStack(self.stackTable[-1][varName], 0)
 
-    def allocStack(self, pos: int, size: int, reg='rax', inFunc=False):
-        emitLine = self.emitLine if not inFunc else self.emitFuncLine
+    def allocStack(self, pos: int, size: int, reg='rax'):
+        emitLine = self.emitLine if not self.inFunc else self.emitFuncLine
         emitLine(f'\tmov QWORD [rbp - {pos}], {reg}')
         self.stack += size
 

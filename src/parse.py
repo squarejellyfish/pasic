@@ -3,10 +3,8 @@ from typing import Optional, Union
 from src.lex import *
 from dataclasses import dataclass
 
-# Parser object keeps track of current token and checks if the code matches the grammar.
 # TODO: add support for command line args
 # TODO: type system
-# TODO: include files
 
 EOF = Token('\0', Symbols.EOF)
 
@@ -18,6 +16,7 @@ class Parser:
 
         self.symbols: set[str] = set()
         self.macros: dict[str, dict] = dict()
+        self.includes: dict[str, int] = dict()
         self.funcs: dict[str, StatementNode] = dict()
         self.labelsDeclared: set[str] = set()
         self.labelsGotoed: set[str] = set()
@@ -61,6 +60,11 @@ class Parser:
     def isShiftOp(self):
         return self.checkToken(Symbols.GTGT) or self.checkToken(Symbols.LTLT)
 
+    def dumpToken(self):
+        print('Dump tokens:')
+        for i, token in enumerate(self.tokens):
+            print(i, token)
+
     def init(self):
         self.ip = 0
         self.curToken = EOF
@@ -72,19 +76,29 @@ class Parser:
         ip = 0
         while ip < len(self.tokens) and self.tokens[ip].kind is not Symbols.EOF:
             token = self.tokens[ip]
+            # print(f'current token = {token}')
             if token.kind is Keywords.INCLUDE:
                 start = ip
                 next_tok = self.tokens[ip + 1]
                 filename = next_tok.text
+                # print(f'including {filename}')
+                if filename not in self.includes:
+                    self.includes[filename] = 1
+                else:
+                    self.includes[filename] += 1
+
+                assert self.includes[filename] < 100, "Include file expansion limit exceeded"
                 end = ip + 2
-                with open(filename, 'r') as file:
-                    lexer = Lexer(file.read(), filename)
+                lexer = Lexer(filename)
                 tokens = lexer.lexfile()
                 self.tokens[start:end] = tokens[:-1] # exclude EOF
-                ip += 1
+                # self.dumpToken()
+                # print(ip, self.includes[filename])
+                continue
             ip += 1
 
     def expandMacros(self):
+        # Register all macro definitions
         keep = []
         while not self.checkToken(Symbols.EOF):
             if not self.checkToken(Symbols.BANG):
@@ -108,6 +122,7 @@ class Parser:
                     f"Preprocessing only supports define macros right now, found {self.curToken}")
         keep.append(self.curToken)
 
+        # expansion
         i = 0
         while i < len(keep):
             curr = keep[i]
@@ -122,11 +137,7 @@ class Parser:
                 assert self.macros[curr.text]['expandCount'] < 1000, "Macros expansion exceeds 1000"
             i += 1
 
-        # for token in keep:
-        #     print(token)
         self.tokens = keep
-
-        self.init()
 
     # program ::= statements
     def program(self):
@@ -134,6 +145,7 @@ class Parser:
         self.expandIncludes()
         self.init()
         self.expandMacros()
+        self.init()
         # Strip newlines at start
         while self.checkToken(Symbols.NEWLINE):
             self.nextToken()
@@ -294,9 +306,6 @@ class Parser:
                                     value=self.expression())
         # 'include' string
         elif self.checkToken(Keywords.INCLUDE):
-            print('in include block:')
-            for i, token in enumerate(self.tokens):
-                print(i, token)
             raise Exception("include block is not reachable")
         else:
             ret = self.expression()

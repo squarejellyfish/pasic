@@ -2,22 +2,20 @@ from enum import Enum, auto
 import sys
 
 # TODO: support for macros, kind of like the c style macros: #define (macros) (something)
-# TODO: lexer does not open file right now (we need to open and give it to lexer), which doesn't make sense
-
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 
 class Lexer:
-    def __init__(self, source, sourceName):
-        # Source code to lex as a string. Append a newline to simplify lexing/parsing the last token/statement.
-        self.source: str = source + '\n'
+    def __init__(self, sourceName):
+        self.sourceName = sourceName
+        with open(self.sourceName, 'r') as file:
+            self.source: str = file.read()
         self.curChar: str = ''   # Current character in the string.
         self.curPos: int = -1    # Current position in the string.
         self.curLine: int = 1
         self.linePos: int = 0
-        self.sourceName = sourceName
         self.nextChar()
 
     # Process the next character.

@@ -1,4 +1,3 @@
 include "std/std.pasic"
-// include "foo.pasic"
 
 dump_(69)

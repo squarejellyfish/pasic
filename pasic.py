@@ -12,10 +12,8 @@ def main():
         sys.exit("Error: no input file.")
     fileName = sys.argv[1]
     outputName = Path(f"{Path(fileName).stem}.asm")
-    with open(fileName, 'r') as inputFile:
-        source = inputFile.read()
 
-    lexer = Lexer(source, fileName)
+    lexer = Lexer(fileName)
     parser = Parser(lexer.lexfile())
     emitter = Emitter(outputName.name)
 

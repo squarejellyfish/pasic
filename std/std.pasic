@@ -389,3 +389,9 @@ func exit(num)
     syscall(SYS_EXIT, num)
 end
 
+func dump_(n)
+    while n > 0 do
+        print(n % 10)
+        n = n / 10
+    end
+end
