@@ -1,5 +1,5 @@
 // program that sorts an array of 10 numbers
-#define N 10
+macro N 10 end
 
 let nums = [1, 5, 3, 6, 69, 420, 129, 23, 465, 2]
 

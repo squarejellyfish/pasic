@@ -74,7 +74,7 @@ class Emitter:
             outputFile.write(self.header + self.codeheader + self.code + self.funcCode + self.ender)
 
     def emitStatement(self, statement: Union[StatementNode, ExpressionNode, BinaryNode]):
-        assert len(Symbols) + len(Keywords) == 44, "Exhaustive handling of operation, notice that not all symbols need to be handled here, only those is a statement"
+        assert len(Symbols) + len(Keywords) == 46, "Exhaustive handling of operation, notice that not all symbols need to be handled here, only those is a statement"
         emitLine = self.emitLine if not self.inFunc else self.emitFuncLine
         if isinstance(statement, StatementNode):
             if statement.typ == 'print_statement':
@@ -132,11 +132,11 @@ class Emitter:
                 # result on top of stack
                 emitLine(f'\tpop rax')
                 emitLine(f'\ttest rax, rax')
-                emitLine(f'\tje IF_{self.labelTable['if']['count']}')
+                emitLine(f'\tje .IF_{self.labelTable['if']['count']}')
                 self.addrStackPush('if')
                 for stmt in body:
                     self.emitStatement(stmt)
-                emitLine(f'\tjmp END_{self.labelTable['if_end']['count']}')
+                emitLine(f'\tjmp .END_{self.labelTable['if_end']['count']}')
                 self.addrStackPush('if_end')
                 alternative, end = statement.alternative if statement.alternative else [], False
                 for stmt in alternative:
@@ -147,38 +147,38 @@ class Emitter:
                 # 'else' will setup end jmp label for us, if no alternative, setup ourself
                 if not end:  # no else, but has elif
                     addr = self.addrStackPop('if')
-                    emitLine(f'IF_{addr}:')
+                    emitLine(f'.IF_{addr}:')
                     addr = self.addrStackPop('if_end')
-                    emitLine(f'END_{addr}:')
+                    emitLine(f'.END_{addr}:')
                 # result will be at top of stack
             elif statement.typ == 'elseif_statement':
                 emitLine(f'\t; -- elseif_statement')
                 addr = self.addrStackPop('if')
-                emitLine(f'IF_{addr}:')
+                emitLine(f'.IF_{addr}:')
                 condition, body = statement.condition, statement.body
                 condition = self.getExprValue(condition)
                 self.emitExpr(condition)
                 # result on top of stack
                 emitLine(f'\tpop rax')
                 emitLine(f'\ttest rax, rax')
-                emitLine(f'\tje IF_{self.labelTable['if']['count']}')
+                emitLine(f'\tje .IF_{self.labelTable['if']['count']}')
                 self.addrStackPush('if')
                 for stmt in body:
                     self.emitStatement(stmt)
                 addr = self.addrStackPeek('if_end')
-                emitLine(f'\tjmp END_{addr}')
+                emitLine(f'\tjmp .END_{addr}')
             elif statement.typ == 'else_statement':
                 emitLine(f'\t; -- else_statement --')
                 addr = self.addrStackPop('if')
-                emitLine(f'IF_{addr}:')
+                emitLine(f'.IF_{addr}:')
                 body = statement.body
                 for stmt in body:
                     self.emitStatement(stmt)
                 addr = self.addrStackPop('if_end')
-                emitLine(f'END_{addr}:')
+                emitLine(f'.END_{addr}:')
             elif statement.typ == 'while_statement':
                 emitLine(f'\t; -- while_statement --')
-                emitLine(f'WHILE_{self.labelTable['while']['count']}:')
+                emitLine(f'.WHILE_{self.labelTable['while']['count']}:')
                 self.addrStackPush('while')
                 condition, body = statement.condition, statement.body
                 condition = self.getExprValue(condition)
@@ -186,14 +186,17 @@ class Emitter:
                 # result on top of stack
                 emitLine(f'\tpop rax')
                 emitLine(f'\ttest rax, rax')
-                emitLine(f'\tje END_WHILE_{self.labelTable['while_end']['count']}')
+                emitLine(f'\tje .END_WHILE_{self.labelTable['while_end']['count']}')
                 self.addrStackPush('while_end')
                 for stmt in body:
                     self.emitStatement(stmt)
                 addr = self.addrStackPop('while')
-                emitLine(f'\tjmp WHILE_{addr}')
+                emitLine(f'\tjmp .WHILE_{addr}')
                 addr = self.addrStackPop('while_end')
-                emitLine(f'END_WHILE_{addr}:')
+                emitLine(f'.END_WHILE_{addr}:')
+            elif statement.typ == 'break_statement':
+                addr = self.addrStackPeek('while_end') # can only break while loop for now
+                emitLine(f'\tjmp .END_WHILE_{addr}')
             elif statement.typ == 'func_declaration':
                 func_name, args, body = statement.text, statement.args, statement.body
                 emitLine = self.emitFuncLine

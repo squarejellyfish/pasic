@@ -1,5 +1,5 @@
 // program that proves pasic language is turing complete
-#define N 100
+macro N 100 end
 
 let board[N] = [0]
 let i = 0

@@ -1,5 +1,24 @@
-#define N 69
+macro N 69 end
 
 print(N) // 69
 print(N + 1) // 70
 print((N + 8) * N - 20 / 4) // 5308
+
+// macro with args
+macro add(a, b) a + b end
+print(add(1, 2)) // 3
+
+// use macro to make for loop
+macro for(var, times) // basically for i in range(times)
+    let var = 0
+    while var < times do
+end
+
+macro endfor(var)
+        var = var + 1
+    #end
+end
+
+for(i, 3) // 0 1 2
+    print(i)
+endfor(i)

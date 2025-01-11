@@ -3,7 +3,7 @@
 // Might be limited by kernel stack limit
 include "std/std.pasic"
 
-#define LIMIT 500 * 100 * 2 // limit of board size
+macro LIMIT 500 * 100 * 2 end // limit of board size
 
 // getting the termial size by ioctl syscall
 let winsize = malloc(16)
@@ -19,12 +19,10 @@ end
 let board[LIMIT] = [0]
 let random = malloc(8)
 
-let i = 0
-while i < (ROW * COL * 2) do
+for(i, ROW * COL * 2)
     syscall(318, random, 8, 0)
     board[i] = *random % 2
-    i = i + 1
-end
+endfor(i)
 
 // setting for time.sleep
 let timespec = malloc(16)
@@ -36,14 +34,12 @@ let rem = malloc(16)
 let elements = ROW * COL
 let iter = 0
 print("\033[H\033[2J")
-while 1 do
+while true do
+    syscall(35, timespec, rem)
     print("\033[H")
     let curr = iter % 2
-    let i = 0
-    syscall(35, timespec, rem)
-    while i < ROW do
-        let j = 0
-        while j < COL do
+    for(i, ROW)
+        for(j, COL)
             let index = curr*elements + COL * i + j
             if board[index] == 1 then
                 print("#")
@@ -78,11 +74,9 @@ while 1 do
                 board[other*elements + COL * i + j] = board[index]
             end
 
-            j = j + 1
-        end
+        endfor(j)
         print("\n")
 
-        i = i + 1
-    end
+    endfor(i)
     iter = (iter + 1) % 2
 end

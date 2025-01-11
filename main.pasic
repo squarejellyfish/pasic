@@ -1,14 +1,1 @@
-func add(a, b)
-    print(a)
-    print(b)
-    let ret = a + b
-    print("ret is ")
-    print(ret)
-    print(ret)
-    return ret
-end
 
-// add(1, 2)
-print(add(1, 2)) // 3
-
-print(123)

@@ -1,5 +1,4 @@
 // prints to stdout
 print("hello, world!\n")
 
-// write a char/pointer to string to stdout
 print(123) // 123

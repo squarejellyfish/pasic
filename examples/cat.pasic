@@ -1,10 +1,10 @@
 include "std/std.pasic"
 
-#define NULL 0
-#define O_RDONLY 0
+macro NULL 0 end
+macro O_RDONLY 0 end
 
-#define PROT_READ 1
-#define MAP_PRIVATE 2
+macro PROT_READ 1 end
+macro MAP_PRIVATE 2 end
 
 let filename = "examples/cat.pasic"
 

@@ -16,8 +16,16 @@ if x then
     print("ident expression will also evaluate\n")
 end
 
-x = 10
+x = 3
 while x do // only while loop for now
-    print(x)
+    let i = 0
+    while i < 5 do
+        if i == 3 then
+            break
+        end
+        print(i)
+        i = i + 1
+    end
+    print("break works\n")
     x = x - 1
 end

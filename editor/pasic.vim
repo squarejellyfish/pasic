@@ -6,7 +6,7 @@ if exists("b:current_syntax")
 endif
 "
 "
-syn keyword     pasicKeywords   if then else while do end goto return let func include
+syn keyword     pasicKeywords   if then else while do end goto return let func include macro break
 
 syn keyword	pasicFunctions		print syscall
 
@@ -26,6 +26,8 @@ syn region	pasicPreProcDefine	start="^#define" skip="\\$" end="$" end="//"me=s-1
 syn match	pasicIdentifier		"\<[a-z_][a-zA-Z0-9_]*\>"
 syn match	pasicGenericFunction	"\<[a-z_][a-zA-Z0-9_]*\>\s*("me=e-1,he=e-1
 syn match	pasicConstant	        "\<[A-Z][A-Z0-9_]*\>"
+
+syn match       pasicDunder             "\<_[A-Za-z0-9_]*_\>"
 "
 "	Function list
 "
@@ -76,7 +78,7 @@ syn cluster	pasicNumber		contains=pasicHex,pasicOctal,pasicInteger
 "	Used with OPEN statement
 "
 syn match	pasicFilenumber	"#\d\+"
-syn match	pasicMathOperator	"[\+\-\=\|\*\/\>\<\%\()[\]]" contains=pasicParen
+syn match	pasicMathOperator	"[\+\-\=\|\*\/\>\<\%\()[\]{}]" contains=pasicParen
 
 
 "
@@ -106,7 +108,8 @@ highlight default link pasicConstant            PreProc
 highlight default link pasicLabel		Label
 highlight default link pasicMathOperator	Operator
 highlight default link pasicInteger		Number
-highlight default link pasicHex		Number
+highlight default link pasicHex		        Number
+highlight default link pasicDunder	        Number
 highlight default link pasicType		Type
 highlight default link pasicTodo		Todo
 

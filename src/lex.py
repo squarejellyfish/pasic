@@ -1,8 +1,6 @@
 from enum import Enum, auto
 import sys
 
-# TODO: support for macros, kind of like the c style macros: #define (macros) (something)
-
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
@@ -262,9 +260,11 @@ class Keywords(Enum):
     DEFINE = auto()
     FUNC = auto()
     INCLUDE = auto()
+    MACRO = auto()
+    BREAK = auto()
 
 assert len(
-    Keywords) == 15, "Exhaustive handling of keywords table, forgot to add support for a keyword?"
+    Keywords) == 17, "Exhaustive handling of keywords table, forgot to add support for a keyword?"
 KEYWORDS_TABLE = {
     'if': Keywords.IF,
     'label': Keywords.LABEL,
@@ -281,6 +281,8 @@ KEYWORDS_TABLE = {
     'define': Keywords.DEFINE,
     'func': Keywords.FUNC,
     'include': Keywords.INCLUDE,
+    'macro': Keywords.MACRO,
+    'break': Keywords.BREAK,
 }
 
 
@@ -297,12 +299,13 @@ BUILTINS_TABLE = {
 
 
 class Token:
-    def __init__(self, tokenText, tokenKind, pos=('', 0, 0)):
+    def __init__(self, tokenText, tokenKind, pos=('', 0, 0), expandFrom=None):
         # The token's actual text. Used for identifiers, strings, and numbers.
         self.text = tokenText
         # The TokenType that this token is classified as.
         self.kind = tokenKind
         self.pos = pos
+        self.expandFrom = expandFrom
 
     @staticmethod
     def getKind(text):
@@ -314,4 +317,4 @@ class Token:
         return Symbols.IDENT
 
     def __str__(self) -> str:
-        return f'({self.kind}, {repr(self.text)}, {self.pos})'
+        return f'({self.kind}, {repr(self.text)}, {self.pos}, expandFrom={self.expandFrom})'

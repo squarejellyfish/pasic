@@ -1,13 +1,21 @@
+from ast import parse
 import sys
 from typing import Optional, Union
 from src.lex import *
 from dataclasses import dataclass
+from itertools import chain
+from collections.abc import Iterable
 
 # TODO: add support for command line args
 # TODO: type system
 
 EOF = Token('\0', Symbols.EOF)
 
+def flatten(x):
+    if isinstance(x, Iterable):
+        return [a for i in x for a in flatten(i)]
+    else:
+        return [x]
 
 class Parser:
     def __init__(self, tokens: list[Token]):
@@ -15,7 +23,7 @@ class Parser:
         self.ip = 0  # instruction pointer
 
         self.symbols: set[str] = set()
-        self.macros: dict[str, dict] = dict()
+        self.macros: dict[str, Macro] = dict()
         self.includes: dict[str, int] = dict()
         self.funcs: dict[str, StatementNode] = dict()
         self.labelsDeclared: set[str] = set()
@@ -50,9 +58,14 @@ class Parser:
         self.ip += 1
 
     def abort(self, message):
-        filename, line, col = self.curToken.pos
-        eprint(f"{filename}:{line}:{col} Error: " + message)
+        self.error(self.curToken, message)
         sys.exit(1)
+
+    def error(self, token: Token, message):
+        if token.expandFrom:
+            self.error(token.expandFrom, 'expanded from here')
+        filename, line, col = token.pos
+        eprint(f"{filename}:{line}:{col} Error: " + message)
 
     def isComparisonOp(self):
         return self.checkToken(Symbols.GT) or self.checkToken(Symbols.GTEQ) or self.checkToken(Symbols.LT) or self.checkToken(Symbols.LTEQ) or self.checkToken(Symbols.EQEQ) or self.checkToken(Symbols.NOTEQ)
@@ -60,7 +73,7 @@ class Parser:
     def isShiftOp(self):
         return self.checkToken(Symbols.GTGT) or self.checkToken(Symbols.LTLT)
 
-    def dumpToken(self):
+    def dumpTokens(self):
         print('Dump tokens:')
         for i, token in enumerate(self.tokens):
             print(i, token)
@@ -92,7 +105,6 @@ class Parser:
                 lexer = Lexer(filename)
                 tokens = lexer.lexfile()
                 self.tokens[start:end] = tokens[:-1] # exclude EOF
-                # self.dumpToken()
                 # print(ip, self.includes[filename])
                 continue
             ip += 1
@@ -101,43 +113,86 @@ class Parser:
         # Register all macro definitions
         keep = []
         while not self.checkToken(Symbols.EOF):
-            if not self.checkToken(Symbols.BANG):
+            if self.checkToken(Keywords.MACRO):
+                self.nextToken()
+                self.expect(Symbols.IDENT)
+                text = self.curToken.text
+                self.nextToken()
+                args, body = [], []
+                if self.checkToken(Symbols.LPARENT): # means this is a macro with args
+                    self.nextToken()
+                    consumed = False
+                    while not self.checkToken(Symbols.RPARENT):
+                        if not consumed:
+                            consumed = True
+                        else:
+                            self.match(Symbols.COMMA)
+                        self.expect(Symbols.IDENT)
+                        args.append(self.curToken.text)
+                        self.nextToken()
+                    self.nextToken()
+
+                while not self.checkToken(Keywords.END):
+                    body.append(self.curToken)
+                    if self.checkToken(Symbols.BANG):
+                        body.pop()
+                        self.nextToken()
+                        self.expect(Keywords.END)
+                        body.append(self.curToken)
+                    if self.peekToken.kind is Symbols.EOF:
+                        self.abort(f'Macro definition unclosed, forgot an `end`?')
+                    self.nextToken()
+                self.match(Keywords.END)
+                self.macros[text] = Macro(text, args, body, 0)
+            else:
                 keep.append(self.curToken)
                 self.nextToken()
-                continue
-
-            self.nextToken()
-            if self.checkToken(Keywords.DEFINE):
-                self.nextToken()
-                text = self.curToken.text
-                self.match(Symbols.IDENT)
-                body = list()
-                while not self.checkToken(Symbols.NEWLINE):
-                    body.append(self.curToken)
-                    self.nextToken()
-                self.match(Symbols.NEWLINE)
-                self.macros[text] = {'body': body, 'expandCount': 0}
-            else:
-                raise NotImplementedError(
-                    f"Preprocessing only supports define macros right now, found {self.curToken}")
         keep.append(self.curToken)
+        self.tokens = keep
 
         # expansion
         i = 0
         while i < len(keep):
             curr = keep[i]
             if curr.text in self.macros:
-                body = self.macros[curr.text]['body']
-                for j, token in enumerate(body):
-                    # new token instance with the pos updated
-                    token = Token(token.text, token.kind, curr.pos)
-                    body[j] = token
-                keep[i:i + 1] = body
-                self.macros[curr.text]['expandCount'] += 1
-                assert self.macros[curr.text]['expandCount'] < 1000, "Macros expansion exceeds 1000"
-            i += 1
-
-        self.tokens = keep
+                macro = self.macros[curr.text]
+                # print(self.macros[curr.text])
+                if macro.args:
+                    start = i
+                    if self.tokens[i + 1].kind is not Symbols.LPARENT:
+                        self.error(self.tokens[i + 1], f'Macro {macro.name} expects arguments, found {self.tokens[i + 1]}')
+                        sys.exit(1)
+                    st = i + 2 # pos of first arg
+                    parsed_args = {}
+                    for t in range(len(macro.args)):
+                        series, delim = [], Symbols.COMMA if t != len(macro.args) - 1 else Symbols.RPARENT
+                        while self.tokens[st].kind is not delim:
+                            series.append(self.tokens[st])
+                            st += 1
+                        if t != len(macro.args) - 1: st += 1
+                        parsed_args[macro.args[t]] = series
+                    if self.tokens[st].kind is not Symbols.RPARENT:
+                        self.error(self.tokens[st], f'Expected right parenthese, found {self.tokens[st]}')
+                        sys.exit(1)
+                    end = st + 1
+                    expanded = [parsed_args[token.text] if token.text in parsed_args else token for token in macro.body]
+                    expanded = flatten(expanded)
+                    expanded = list(map(lambda token: Token(token.text, token.kind, curr.pos, token), expanded))
+                    keep[start:end] = expanded
+                    # for token in (keep):
+                    #     print(token)
+                    # raise NotImplementedError('Macro with args')
+                else:
+                    body = macro.body
+                    for j, token in enumerate(body):
+                        # new token instance with the pos updated
+                        token = Token(token.text, token.kind, curr.pos, token)
+                        body[j] = token
+                    keep[i:i + 1] = body
+                    macro.expandCount += 1
+                    assert self.macros[curr.text].expandCount < 1000, "Macros expansion exceeds 1000"
+            else:
+                i += 1
 
     # program ::= statements
     def program(self):
@@ -146,6 +201,7 @@ class Parser:
         self.init()
         self.expandMacros()
         self.init()
+        # self.dumpTokens()
         # Strip newlines at start
         while self.checkToken(Symbols.NEWLINE):
             self.nextToken()
@@ -172,7 +228,7 @@ class Parser:
         # Check first token to see which statement
 
         ret = None
-        assert len(Symbols) + len(Keywords) == 44, "Exhaustive handling of operation, notice that not all symbols need to be handled, only those who need a statement"
+        assert len(Symbols) + len(Keywords) == 46, "Exhaustive handling of operation, notice that not all symbols need to be handled, only those who need a statement"
         # PRINT expression
         if self.checkToken(Keywords.PRINT):
             self.nextToken()
@@ -307,6 +363,9 @@ class Parser:
         # 'include' string
         elif self.checkToken(Keywords.INCLUDE):
             raise Exception("include block is not reachable")
+        elif self.checkToken(Keywords.BREAK):
+            ret = StatementNode('break_statement')
+            self.nextToken()
         else:
             ret = self.expression()
             # self.abort(f"Invalid statement at {
@@ -482,7 +541,8 @@ class Parser:
             # Ensure var exists
             if self.curToken.text in self.symbols or \
                     self.curToken.text in self.funcSymStack[-1] or \
-                    self.curToken.text in self.funcs:
+                    self.curToken.text in self.funcs or \
+                    self.curToken.text in self.macros:
                 ret = ExpressionNode('ident', text=self.curToken.text)
                 self.nextToken()
             else:
@@ -513,7 +573,7 @@ class Parser:
             self.match(Symbols.RBRACKET)
 
         else:
-            self.abort(f"Unexpected token at {self.curToken.text}")
+            self.abort(f"Unexpected token at {repr(self.curToken.text)}: {self.curToken}")
 
         return ret
 
@@ -559,3 +619,10 @@ class BinaryNode:
     text: str
     left: ExpressionNode
     right: ExpressionNode
+
+@dataclass
+class Macro:
+    name: str
+    args: list[str]
+    body: list[Token]
+    expandCount: int
