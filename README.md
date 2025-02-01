@@ -1,7 +1,3 @@
----
-geometry: margin=20mm
----
-
 # Pasic
 
 Basic-ish language in Python implemented from scratch. Compiled to x86_64 native instruction set.
@@ -19,7 +15,8 @@ python pasic.py <input_file>
 - [x] Compiled to native x86_64
 - [x] Generate AST
 - [x] Error reporting on syntax and (some) logical error
-- [x] Turing Complete (check `./examples/5-rule110.bas`)
+- [x] Turing Complete (check `./tests/5-rule110.pasic`)
+- [x] Simulate Game of Life (check `./examples/gol.pasic`)
 
 ## Examples
 
@@ -97,4 +94,29 @@ while x < 100 do
     print(x)
     x = x + 1
 end
+```
+
+### Macros
+
+```basic
+macro x 10 end
+
+print(x) // 10
+
+macro print_something(arg)
+    print("in macro")
+    print(arg)
+end
+
+print_something(" hello\n") // in macro hello\n
+```
+
+### Functions
+
+```basic
+func add(a, b)
+    return a + b
+end
+
+print(add(1, 2)) // 3
 ```
